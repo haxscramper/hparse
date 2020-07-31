@@ -40,9 +40,10 @@ type
 #=============================  Predicates  ==============================#
 
 func `==`*[C, L](lhs, rhs: Patt[C, L]): bool =
-  lhs.kind == rhs.kind and (
+  lhs.action == rhs.action and lhs.kind == rhs.kind and (
     case lhs.kind:
-      of pkNterm: lhs.nterm == rhs.nterm
+      of pkNterm:
+        lhs.nterm == rhs.nterm
       of pkTerm: lhs.tok == rhs.tok
       of pkAlternative, pkConcat:
         subnodesEq(lhs, rhs, patts)

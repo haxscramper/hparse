@@ -1,6 +1,6 @@
 import sugar, strutils, sequtils, strformat
-
-import hparse/[grammars, grammar_dsl]
+import hmisc/helpers
+import hparse/[grammars, grammar_dsl, parse_tree, parse_primitives]
 
 #===========================  implementation  ============================#
 
@@ -19,39 +19,58 @@ type
     tkA
     tkB
 
-const nt = nterm[TKind, string]
+let nt = nterm[TKind, string]
 proc tok(lex: string): auto = tok[TKind, string](tkA, lex)
+proc tok(lex: TKind): auto = tok[TKind, string](tkA)
 
 suite "Grammar DSL":
-  test "test":
-    # makeGrammar(A ::= B)
-    # makeGrammar(A ::= *B)
-    assert makeGrammarImpl(A ::= Q & B & C) == {
+  test "Grammar literal construction":
+    assertEq makeGrammarImpl(A ::= Q & B & C), {
       "A" : andP(nt("Q"), nt("B"), nt("C"))
     }
 
-    assert makeGrammarImpl(A ::= "$" & Z) == {
+    assertEq makeGrammarImpl(A ::= "$" & Z), {
       "A" : andP(tok("$"), nt("Z"))
     }
 
-    assert makeGrammarImpl(A ::= "$" & *(Z & A)) == {
+    assertEq makeGrammarImpl(A ::= "$" & *(Z & A)), {
       "A" : andP(tok("$"), zeroP(andP(nt("Z"), nt("A"))))
     }
 
-    # makeGrammar(A ::= (A | B) & C)
-    # block:
-    #   let grammar = makeGrammar:
-    #     A ::= B
-    #     C ::= D
+    assertEq makeGrammarImpl(A ::= (A | B) & C), {
+      "A" : andP(orP(nt("A"), nt("B")), nt("C"))
+    }
 
-    #   assertEq {"A" : nt("B"), "C" : nt("D")}, grammar
 
-    # block:
-    #   let grammar = makeGrammar:
-    #     List ::= "[" & Elements & "]"
-    #     Elements ::= Element & *("," & Element)
-    #     Element ::= ident | List
+    assertEq do:
+        {"A" : nt("B"), "C" : nt("D")}
+    do:
+      makeGrammarImpl:
+        A ::= B
+        C ::= D
 
-    #   # assertEq {
-    #   #   "List" :
-    #   # }
+    assertEq do:
+      makeGrammarImpl:
+        List ::= "[" & Elements & "]"
+        Elements ::= Element & *("," & Element)
+        Element ::= tkA | List
+    do:
+       {
+         "List" : andP(tok("["), nt("Elements"), tok("]")),
+         "Elements" : andP(
+           nt("Element"), zeroP(andP(tok(","), nt("Element")))),
+         "Element" : orP(tok(tkA), nt("List"))
+       }
+
+  test "Grammar tree actions":
+    assertEq makeGrammarImpl(A ::= !B), {
+      "A" : nt("B").addAction(taDrop)
+    }
+
+    assertEq makeGrammarImpl(A ::= !B & C), {
+      "A" : andP(nt("B").addAction(taDrop), nt("C"))
+    }
+
+    assertEq makeGrammarImpl(A ::= (A | !B) & C), {
+      "A" : andP(orP(nt("A"), nt("B").addAction(taDrop)), nt("C"))
+    }

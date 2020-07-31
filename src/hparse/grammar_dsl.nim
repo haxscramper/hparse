@@ -58,7 +58,8 @@ func newPattTree(prefix: string, patt: PattTree): PattTree =
       raiseAssert("Unexpected prefix ident: {prefix}")
 
 
-func newPattTree(node: NimNode): PattTree =
+proc flattenPatt(node: NimNode): PattTree
+proc newPattTree(node: NimNode): PattTree =
   case node.kind:
     of nnkIdent:
       let str: string = node.strVal()
@@ -68,6 +69,10 @@ func newPattTree(node: NimNode): PattTree =
         PattTree(kind: ptkTokenKind, token: str)
     of nnkStrLit:
       PattTree(kind: ptkStrLiteral, strval: node.strVal())
+    of nnkPar:
+      flattenPatt(node[0])
+    of nnkPrefix:
+      flattenPatt(node)
     else:
       raiseAssert(
         &"Unexpected node kind for `newPattTree` {node.kind} " &
@@ -92,7 +97,7 @@ proc flattenPatt(node: NimNode): PattTree =
     of nnkPar:
       result = node[0].flattenPatt()
     else:
-      echo node.treeRepr()
+      debugecho node.treeRepr()
 
 proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
@@ -155,7 +160,7 @@ macro makeGrammarImpl*(body: untyped): untyped =
       newLit($rule[1]),
       rule[2].flattenPatt().toCalls())
 
-  echo result.toStrLit()
+  echo result.tostrLit()
 
 template makeGrammar*[C, L](body: untyped): untyped =
   block:
