@@ -394,10 +394,6 @@ func exprRepr*[C, L](
   let head = rule.nterm.exprRepr(conf.normalizeNterms)
   return fmt("{head:<12} {conf.prodArrow} {rule.patt.exprRepr(conf)}")
 
-func exprRepr*[C, L](
-  rule: Rule[C, L],
-  conf: GrammarPrintConf = defaultGrammarPrintConf): string =
-  return fmt("{rule.nterm:<12} {conf.prodArrow} {rule.patts.exprRepr(conf)}")
 
 func exprRepr*[C, L](
   grammar: BnfGrammar[C, L],

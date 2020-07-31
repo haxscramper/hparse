@@ -78,10 +78,10 @@ func setPosInfo*[C, L](tok: var Token[C, L, LexInfo], pos: int): void =
 func getPosInfo*[C, L](tok: Token[C, L, LexInfo]): int =
   tok.info.pos
 
-template setPosInfo*[C, L, I](tok: var Token[C, L, I], pos: int): untyped =
+template setPosInfo*[Tok](tok: var Tok, pos: int): untyped =
   ## Fallback implementation for `setPosInfo`.
-  when compiles(setPosInfo[C, L, I](tok, pos)):
-    setPosInfo[C, L, I](tok, pos)
+  when compiles(setPosInfo(tok, pos)):
+    setPosInfo(tok, pos)
 
 template hasPosInfo*[C, L, I](tok: Token[C, L, I]): bool =
   compiles(getPosInfo(tok))

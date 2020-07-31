@@ -1,6 +1,6 @@
 import macros, options, sugar
 import strformat, strutils, sequtils, algorithm
-import hmisc/[defensive, helpers]
+import hmisc/helpers
 import sets
 import grammars
 

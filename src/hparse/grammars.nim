@@ -2,7 +2,8 @@ import tables, hashes, sugar, sequtils, strformat, options, colors
 import strutils
 export tables
 import hmisc/helpers
-import hmisc/types/[graphviz_ast, hvariant]
+import hasts/graphviz_ast
+import hmisc/types/hvariant
 import hmisc/algo/[halgorithm, htree_mapping, hseq_mapping]
 import lexer, token
 
@@ -158,3 +159,8 @@ func exprRepr*[C, L](
   grammar: Grammar[C, L],
   conf: GrammarPrintConf = defaultGrammarPrintConf): string =
   grammar.rules.mapIt(exprRepr(it, conf)).joinl()
+
+func exprRepr*[C, L](
+  rule: Rule[C, L],
+  conf: GrammarPrintConf = defaultGrammarPrintConf): string =
+  return fmt("{rule.nterm:<12} {conf.prodArrow} {rule.patts.exprRepr(conf)}")
