@@ -101,6 +101,18 @@ type
 func contains*[L](lset: LexSet[L], lex: L): bool =
   lex in lset.lexemes
 
+func `==`*[C, L](l, r: ExpectedToken[C, L]): bool =
+  if (l.cat == r.cat) and (l.hasLex == r.hasLex):
+    if l.hasLex:
+      when L is void:
+        true
+      else:
+        l.lex == r.lex
+    else:
+      true
+  else:
+    false
+
 #==============================  Accessors  ==============================#
 
 func incl*[L](s: var LexSet[L], lex: L): void = s.lexemes.incl(lex)

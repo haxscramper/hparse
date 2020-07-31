@@ -89,13 +89,15 @@ proc flattenPatt(node: NimNode): PattTree =
 
       result.elems.add newPattTree(curr)
       result.elems.reverse
+    of nnkPar:
+      result = node[0].flattenPatt()
     else:
       echo node.treeRepr()
 
 proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
     of ptkStrLiteral:
-      newCall("strLit", newLit(patt.strVal))
+      newCall("tok", newLit(patt.strVal))
     of ptkTreeAction:
       let actionName: string =
         case patt.prefix:
@@ -141,7 +143,7 @@ proc toCalls(patt: PattTree): NimNode =
     of ptkNtermName:
       newCall("nt", newLit(patt.nterm))
 
-macro makeGrammar(body: untyped): untyped =
+macro makeGrammarImpl*(body: untyped): untyped =
   let body =
     if body.kind == nnkStmtList: body
     else: newStmtList(body)
@@ -155,36 +157,7 @@ macro makeGrammar(body: untyped): untyped =
 
   echo result.toStrLit()
 
-
-
-#================================  tests  ================================#
-
-
-import unittest
-import grammars
-const nt = nterm[char]
-
-suite "Grammar primitives":
-  test "test":
-    # makeGrammar(A ::= B)
-    # makeGrammar(A ::= *B)
-    assert makeGrammar(A ::= Q & B & C) ==
-      {"A" : andP(nt("Q"), nt("B"), nt("C"))}
-    # makeGrammar(A ::= "$" & *(Z))
-    # makeGrammar(A ::= (A | B) & C)
-    block:
-      let grammar = makeGrammar:
-        A ::= B
-        C ::= D
-
-      assertEq {"A" : nt("B"), "C" : nt("D")}, grammar
-
-    block:
-      let grammar = makeGrammar:
-        List ::= "[" & Elements & "]"
-        Elements ::= Element & *("," & Element)
-        Element ::= ident | List
-
-      # assertEq {
-      #   "List" :
-      # }
+template makeGrammar*[C, L](body: untyped): untyped =
+  block:
+    const nt {.inject.} = nterm[C, L]
+    makeGrammarImpl(body)

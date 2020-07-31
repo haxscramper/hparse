@@ -172,3 +172,26 @@ static:
 
 dumpTree:
   @[a1, a2, a3]
+
+#=======================  undeclared field error  ========================#
+
+type
+  ExpectedToken*[C, L] = object
+    cat*: C ## Expected token category
+    case hasLex*: bool ## Whether or not lexeme value should be considered
+      of true:
+        lex*: L ## Expected lexeme value
+      of false:
+        nil
+
+func `==`*[C, L](l, r: ExpectedToken[C, L]): bool =
+  if (l.cat == r.cat) and (l.hasLex == r.hasLex):
+    if l.hasLex:
+      l.lex == r.lex
+    else:
+      true
+  else:
+    false
+
+let exp = ExpectedToken[char, char]()
+echo exp == exp
