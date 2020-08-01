@@ -79,7 +79,6 @@ suite "Grammar base":
 
 
   test "Grammar tree actions":
-    # TODO TEST subrule
     assertEq makeGrammarImpl(A ::= !B), {
       "A" : nt("B").addAction(taDrop)
     }
@@ -104,6 +103,16 @@ suite "Grammar base":
     assertEq makeGrammarImpl(A ::= !*(C) & U), {
       "A" : andP(zeroP(nt("C")).addAction(taDrop), nt("U"))
     }
+
+    assertEq grm(A ::= {B & C} & D), {
+      "A" : andP(
+        andP(nt "B", nt "C").addAction(taSubrule), nt("D")
+      )
+    }
+
+    # NOTE expect compilation error message
+    # discard grm(A ::= *{A & B})
+    # discard grm(A ::= !{A & B})
 
     assertEq grm(A ::= !*B), grm(A ::= !(*B))
     assertEq grm(A ::= !*B & !+C), grm(A ::= !(*B) & !(+C))

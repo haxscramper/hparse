@@ -53,30 +53,41 @@ func `==`*(lhs, rhs: PattTree): bool =
 func newPattTree(infix: string, elems: seq[PattTree]): PattTree =
   PattTree(kind: ptkInfix, infix: infix, elems: elems)
 
+const
+  treeActionSigils = ["!", "@", "^", "^@"]
+  treeActionSigils2 = [
+    "!*", "!+", "@+", "@*", "^*", "^+", "!?", "@?", "^?"]
+  treeActionSigils3 = ["^@*", "^@+", "^@?"]
+  treeActionSigilsInvalid = [
+    "*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^"]
+  patternSigils = ["*", "+", "?"]
+
+
+
 func newPattTree(prefixNode: NimNode, patt: PattTree): PattTree =
   let prefix = prefixNode.strVal()
   case prefix:
-    of "!", "@", "^", "^@":
+    of treeActionSigils:
       PattTree(kind: ptkTreeAction, prefix: prefix, elementItem: @[patt])
-    of "*", "+", "?":
+    of patternSigils:
       PattTree(kind: ptkPrefix, prefix: prefix, elementItem: @[patt])
-    of "!*", "!+", "@+", "@*", "^*", "^+", "!?", "@?", "^?":
+    of treeActionSigils2:
       PattTree(kind: ptkTreeAction, prefix: $prefix[0], elementItem: @[
         PattTree(kind: ptkPrefix, prefix: $prefix[1], elementItem: @[patt])
       ])
-    of "^@*", "^@+", "^@?":
+    of treeActionSigils3:
       PattTree(kind: ptkTreeAction, prefix: "^@", elementItem: @[
         PattTree(kind: ptkPrefix, prefix: $prefix[2], elementItem: @[patt])
       ])
     else:
       let annot =
         case prefix:
-          of "*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^":
+          of treeActionSigilsInvalid:
             "Incorrect transposition of elements"
           else:
             "Incorrect combination"
 
-      raise toCodeError(
+      raiseCodeError(
         prefixNode, &"Unexpected prefix: '{prefix}'", annot, -1)
 
 
@@ -97,15 +108,22 @@ proc newPattTree(node: NimNode): PattTree =
       flattenPatt(node)
     of nnkBracket:
       if node.len > 1:
-        raise toCodeError(
+        raiseCodeError(
           node[1], "Expected one element for optional brace",
           "Use `&` for concatenation")
 
       PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
         flattenPatt(node[0])
       ])
+    of nnkCurly:
+      if node.len > 1:
+        raiseCodeError(node[1], "Expected one element for subrule",
+                       "Use `&` for concatenation")
+      PattTree(kind: ptkTreeAction, prefix: "{}", elementItem: @[
+        flattenPatt(node[0])
+      ])
     else:
-      raise toCodeError(
+      raiseCodeError(
         node, &"Unexpected node kind for `newPattTree` {node.kind}",
         "", 0)
 
@@ -115,6 +133,14 @@ proc flattenPatt(node: NimNode): PattTree =
     of nnkIdent, nnkStrLit:
       return newPattTree(node)
     of nnkPrefix:
+      if node[1].kind == nnkCurly:
+        # NOTE right now I'm not sure how prefix for subrule should be
+        # handled - it is quite easy to enable later.
+        raiseCodeError(
+          node,
+          "Cannot use prefix for subrule tree action",
+          "`taSubrule`")
+
       case $node[0]:
         of "%":
           return PattTree(kind: ptkCall, expr: node[1])
@@ -134,7 +160,7 @@ proc flattenPatt(node: NimNode): PattTree =
       result = node[0].flattenPatt()
     of nnkBracket:
       if node.len > 1:
-        raise toCodeError(
+        raiseCodeError(
           node[1], "Expected one element for optional brace",
           "Use `&` for concatenation")
 
@@ -142,7 +168,7 @@ proc flattenPatt(node: NimNode): PattTree =
         node[0].flattenPatt()
       ])
     else:
-      raise toCodeError(node, "Unexpected node kind", $node.kind)
+      raiseCodeError(node, "Unexpected node kind", $node.kind)
 
 proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
@@ -157,6 +183,7 @@ proc toCalls(patt: PattTree): NimNode =
           of "@": "taSpliceDiscard"
           of "!": "taDrop"
           of "^@": "taSplicePromote"
+          of "{}": "taSubrule"
           else:
             raiseAssert(&"Invalid tree action prefix: '{patt.prefix}'")
 
@@ -203,16 +230,9 @@ macro makeGrammarImpl*(body: untyped): untyped =
   result = nnkTableConstr.newTree()
   for rule in body:
     assert rule.kind == nnkInfix and $rule[0] == "::="
-    try:
-      result.add newColonExpr(
-        newLit($rule[1]),
-        rule[2].flattenPatt().toCalls())
-    except CodeError:
-      block:
-        pprintErr
-      block:
-        raiseAssert("Fail")
-
+    result.add newColonExpr(
+      newLit($rule[1]),
+      rule[2].flattenPatt().toCalls())
   # echo result.toStrLit()
   # echo result.treeRepr()
 
