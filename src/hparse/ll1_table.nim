@@ -1,7 +1,8 @@
 import grammars, lexer
 import hmisc/[helpers]
 import hmisc/algo/hseq_mapping
-import hmisc/types/[seq2d, hdrawing, hterm_buf]
+import hdrawing, hdrawing/term_buf
+import hmisc/types/[seq2d]
 import sugar, sequtils, hashes, tables, strutils, strformat, deques, sets
 
 import bnf_grammars, grammars, parse_helpers, parse_tree, token
@@ -66,7 +67,7 @@ func isNullable[C, L](
     fbnf.nterm in nulls
     # of fbkEmpty: true
     # of fbkTerm: false
-    # of fbkNterm: 
+    # of fbkNterm:
 
 func getSets*[C, L](grammar: BnfGrammar[C, L]): tuple[
   first: FirstTable[C, L],

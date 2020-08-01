@@ -34,8 +34,18 @@ suite "Grammar base":
     makeGrammarImpl(body)
 
   test "Grammar literal construction":
+    discard makeGrammarImpl(A ::= tkA & tkB)
+
     assertEq makeGrammarImpl(A ::= Q & B & C), {
       "A" : andP(nt("Q"), nt("B"), nt("C"))
+    }
+
+    assertEq makeGrammarImpl(A ::= B & C), {
+      "A" : andP(nt("B"), nt("C"))
+    }
+
+    assertEq makeGrammarImpl(A ::= tkA & tkB), {
+      "A" : andP(tok(tkA), tok(tkB))
     }
 
     assertEq makeGrammarImpl(A ::= "$" & Z), {
@@ -165,6 +175,24 @@ suite "Grammar DSL API":
     let grammar = makeGrammar[En, string]:
       A ::= B
 
+    block:
+      discard makeGrammar[En, string]:
+        A ::= tkA & tkB
+
+      # assertEq do:
+      #   makeGrammar[En, string]:
+      #     A ::= tkA & tkB
+      # do:
+      #   {"A" : andP(tok[En, string](tkA), tok[En, string](tkB))}
+
+      const grm0 = {"A" : andP(tok[En, string](tkA), tok[En, string](tkB))}
+
+      let grm = makeGrammar[En, string]:
+        A ::= tkA & tkB
+
+      # const grm2 = makeGrammar[En, string]:
+      #   A ::= tkA & tkB
+
     assertEq do:
       makeGrammar[En, string]:
         A ::= B
@@ -180,3 +208,10 @@ suite "Grammar DSL API":
         A ::= "hello111"
     do:
       {"A" : voidCatTok("hello111")}
+
+
+  test "{makeGrammarConst}":
+    makeGrammarConst[void, string](grammar):
+      A ::= B
+
+    assertEq grammar, {"A" : nterm[void, string]("B")}

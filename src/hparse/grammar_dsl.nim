@@ -222,7 +222,7 @@ proc toCalls(patt: PattTree): NimNode =
     of ptkNtermName:
       newCall("nt", newLit(patt.nterm))
 
-macro makeGrammarImpl*(body: untyped): untyped =
+proc generateGrammar*(body: NimNode): NimNode =
   let body =
     if body.kind == nnkStmtList: body
     else: newStmtList(body)
@@ -233,18 +233,30 @@ macro makeGrammarImpl*(body: untyped): untyped =
     result.add newColonExpr(
       newLit($rule[1]),
       rule[2].flattenPatt().toCalls())
+
   # echo result.toStrLit()
-  # echo result.treeRepr()
+
+
+macro makeGrammarImpl*(body: untyped): untyped = generateGrammar(body)
+
+template makeGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
+  proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
+  when catT is void:
+    proc tok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
+  else:
+    proc tok(lex: string): Patt[catT, lexT] = tok[catT, lexT](catT(0), lex)
+
+  when not (catT is void):
+    proc tok(lex: catT): Patt[catT, lexT] = grammars.tok[catT, lexT](catT(0))
+
 
 template makeGrammar*[C, L](body: untyped): untyped =
   block:
-    proc nt(str: string): Patt[C, L] = nterm[C, L](str)
-    when C is void:
-      proc tok(lex: string): Patt[C, L] = voidCatTok[L](lex)
-    else:
-      proc tok(lex: string): Patt[C, L] = tok[C, L](C(0), lex)
-
-    when not (C is void):
-      proc tok(lex: C): Patt[C, L] = tok[C, L](C(0))
-
+    makeGrammarCalls(C, L)
     makeGrammarImpl(body)
+
+template makeGrammarConst*[C, L](cname: untyped, body: untyped): untyped =
+  const cname =
+    block:
+      makeGrammarCalls(C, L)
+      makeGrammarImpl(body)

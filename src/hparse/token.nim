@@ -74,6 +74,9 @@ func makeToken*[C, L, I](cat: C, lex: L): Token[C, L, I] =
 func makeTokenNoInfo*[C, L](cat: C, lex: L): Token[C, L, void] =
   Token[C, L, void](cat: cat, lex: lex)
 
+func makeTokens*[C, L](cats: seq[C]): seq[Token[C, L, void]] =
+  cats.mapIt(Token[C, L, void](cat: it))
+
 #==============================  Accessors  ==============================#
 func setPosInfo*[C, L](tok: var Token[C, L, LexInfo], pos: int): void =
   tok.info.pos = pos
