@@ -1,6 +1,6 @@
 import sugar, strutils, sequtils, strformat, algorithm
 import macros
-import hmisc/helpers
+import hmisc/[helpers, hexceptions]
 import grammars
 
 #===========================  implementation  ============================#
@@ -53,7 +53,8 @@ func `==`*(lhs, rhs: PattTree): bool =
 func newPattTree(infix: string, elems: seq[PattTree]): PattTree =
   PattTree(kind: ptkInfix, infix: infix, elems: elems)
 
-func newPattTree(prefix: string, patt: PattTree): PattTree =
+func newPattTree(prefixNode: NimNode, patt: PattTree): PattTree =
+  let prefix = prefixNode.strVal()
   case prefix:
     of "!", "@", "^", "^@":
       PattTree(kind: ptkTreeAction, prefix: prefix, elementItem: @[patt])
@@ -67,10 +68,16 @@ func newPattTree(prefix: string, patt: PattTree): PattTree =
       PattTree(kind: ptkTreeAction, prefix: "^@", elementItem: @[
         PattTree(kind: ptkPrefix, prefix: $prefix[2], elementItem: @[patt])
       ])
-    # of "%":
-    #   PattTree(kind: ptkTemplate, )
     else:
-      raiseAssert(&"Unexpected prefix ident: '{prefix}'")
+      let annot =
+        case prefix:
+          of "*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^":
+            "Incorrect transposition of elements"
+          else:
+            "Incorrect combination"
+
+      raise toCodeError(
+        prefixNode, &"Unexpected prefix: '{prefix}'", annot)
 
 
 proc flattenPatt(node: NimNode): PattTree
@@ -102,7 +109,7 @@ proc flattenPatt(node: NimNode): PattTree =
         of "%":
           return PattTree(kind: ptkCall, expr: node[1])
         else:
-          return newPattTree($node[0], flattenPatt(node[1]))
+          return newPattTree(node[0], flattenPatt(node[1]))
     of nnkInfix:
       var curr = node
       let infix = $node[0]
@@ -180,6 +187,7 @@ macro makeGrammarImpl*(body: untyped): untyped =
     result.add newColonExpr(
       newLit($rule[1]),
       rule[2].flattenPatt().toCalls())
+    # highlightErr(cast[CodeError](getCurrentException()))
 
   # echo result.treeRepr()
 

@@ -23,7 +23,10 @@ type
     tkB
 
 dumpTree:
-  %hello(12, 3)
+  !*B
+  *!B
+  @*B
+  *@B
 
 
 let nt = nterm[TKind, string]
@@ -101,6 +104,8 @@ suite "Grammar DSL":
 
     assertEq grm(A ::= !*B), grm(A ::= !(*B))
     assertEq grm(A ::= !*B & !+C), grm(A ::= !(*B) & !(+C))
+    # assertEq grm(A ::= !*B), grm(A ::= *!B)
+    discard grm(A ::= *!B)
 
     assertNoDiff do:
       makeGrammarImpl:
@@ -121,6 +126,7 @@ suite "Grammar DSL":
           )
         )
       }
+
 
   test "Grammar template rules":
     proc csvList(str: string): Patt[TKind, string] =
