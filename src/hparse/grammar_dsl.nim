@@ -77,7 +77,7 @@ func newPattTree(prefixNode: NimNode, patt: PattTree): PattTree =
             "Incorrect combination"
 
       raise toCodeError(
-        prefixNode, &"Unexpected prefix: '{prefix}'", annot)
+        prefixNode, &"Unexpected prefix: '{prefix}'", annot, -1)
 
 
 proc flattenPatt(node: NimNode): PattTree
@@ -184,14 +184,20 @@ macro makeGrammarImpl*(body: untyped): untyped =
   result = nnkTableConstr.newTree()
   for rule in body:
     assert rule.kind == nnkInfix and $rule[0] == "::="
-    result.add newColonExpr(
-      newLit($rule[1]),
-      rule[2].flattenPatt().toCalls())
-    # highlightErr(cast[CodeError](getCurrentException()))
-
+    try:
+      result.add newColonExpr(
+        newLit($rule[1]),
+        rule[2].flattenPatt().toCalls())
+    except CodeError:
+      block:
+        pprintErr
+      block:
+        raiseAssert("Fail")
   # echo result.treeRepr()
 
 template makeGrammar*[C, L](body: untyped): untyped =
   block:
-    const nt {.inject.} = nterm[C, L]
+    proc nt(str: string): Patt[C, L] = nterm[C, L](str)
+    proc tok(lex: string): Patt[C, L] = tok[C, L](tkA, lex)
+    proc tok(lex: C): Patt[C, L] = tok[C, L](tkA)
     makeGrammarImpl(body)

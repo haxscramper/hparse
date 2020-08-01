@@ -17,23 +17,19 @@ import unittest
 #     if (lhs[0] != rhs[0]) or not (grammars.`==`(lhs[1], rhs[1])):
 #       return false
 
-type
-  Tkind = enum
-    tkA
-    tkB
-
-dumpTree:
-  !*B
-  *!B
-  @*B
-  *@B
 
 
-let nt = nterm[TKind, string]
-proc tok(lex: string): auto = tok[TKind, string](tkA, lex)
-proc tok(lex: TKind): auto = tok[TKind, string](tkA)
+suite "Grammar base":
+  type
+    Tkind = enum
+      tkA
+      tkB
 
-suite "Grammar DSL":
+  let nt = nterm[TKind, string]
+  proc tok(lex: string): auto = tok[TKind, string](tkA, lex)
+  proc tok(lex: TKind): auto = tok[TKind, string](tkA)
+
+
   template grm(body: untyped): untyped =
     makeGrammarImpl(body)
 
@@ -104,8 +100,6 @@ suite "Grammar DSL":
 
     assertEq grm(A ::= !*B), grm(A ::= !(*B))
     assertEq grm(A ::= !*B & !+C), grm(A ::= !(*B) & !(+C))
-    # assertEq grm(A ::= !*B), grm(A ::= *!B)
-    discard grm(A ::= *!B)
 
     assertNoDiff do:
       makeGrammarImpl:
@@ -139,3 +133,26 @@ suite "Grammar DSL":
     assertEq grm(A ::= %csvList("cat")), {
       "A" : andP(tok("cat"), zeroP(andP(tok(","), tok("cat"))))
     }
+
+suite "Grammar DSL API":
+  test "{makeGrammar} template":
+    # TODO test `void` category type with string lexemes
+    type
+      En = enum
+        tkA
+        tkB
+
+    let ntUsr = nterm[En, string]
+    proc tokUsr(lex: string): auto = tok[En, string](tkA, lex)
+    proc tokUsr(lex: En): auto = tok[En, string](tkA)
+
+    let grammar = makeGrammar[En, string]:
+      A ::= B
+
+    assertEq do:
+      makeGrammar[En, string]:
+        A ::= B
+    do:
+      {"A" : ntUsr("B")}
+
+  # test "{makeGrammar} with `void` category"
