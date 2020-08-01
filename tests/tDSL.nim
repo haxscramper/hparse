@@ -71,6 +71,13 @@ suite "Grammar base":
          "Element" : orP(tok(tkA), nt("List"))
        }
 
+    assertEq grm(A ::= [B] & C), {"A" : andP(optP(nt "B"), nt("C"))}
+    assertEq grm(A ::= ?B & C), {"A" : andP(optP(nt "B"), nt("C"))}
+    assertEq grm(A ::= [B & C]), {"A" : optP(andP(nt "B", nt "C"))}
+    assertEq grm(A ::= [B | C]), grm(A ::= [B | C])
+    assertEq grm(A ::= ?(A | B)), grm(A ::= [A | B])
+
+
   test "Grammar tree actions":
     # TODO TEST subrule
     assertEq makeGrammarImpl(A ::= !B), {

@@ -58,13 +58,13 @@ func newPattTree(prefixNode: NimNode, patt: PattTree): PattTree =
   case prefix:
     of "!", "@", "^", "^@":
       PattTree(kind: ptkTreeAction, prefix: prefix, elementItem: @[patt])
-    of "*", "+":
+    of "*", "+", "?":
       PattTree(kind: ptkPrefix, prefix: prefix, elementItem: @[patt])
-    of "!*", "!+", "@+", "@*", "^*", "^+":
+    of "!*", "!+", "@+", "@*", "^*", "^+", "!?", "@?", "^?":
       PattTree(kind: ptkTreeAction, prefix: $prefix[0], elementItem: @[
         PattTree(kind: ptkPrefix, prefix: $prefix[1], elementItem: @[patt])
       ])
-    of "^@*", "^@+":
+    of "^@*", "^@+", "^@?":
       PattTree(kind: ptkTreeAction, prefix: "^@", elementItem: @[
         PattTree(kind: ptkPrefix, prefix: $prefix[2], elementItem: @[patt])
       ])
@@ -95,12 +95,22 @@ proc newPattTree(node: NimNode): PattTree =
       flattenPatt(node[0])
     of nnkPrefix:
       flattenPatt(node)
+    of nnkBracket:
+      if node.len > 1:
+        raise toCodeError(
+          node[1], "Expected one element for optional brace",
+          "Use `&` for concatenation")
+
+      PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
+        flattenPatt(node[0])
+      ])
     else:
-      raiseAssert(
-        &"Unexpected node kind for `newPattTree` {node.kind} " &
-        &"but expected `nnkIdent` or `nnkStrLit`")
+      raise toCodeError(
+        node, &"Unexpected node kind for `newPattTree` {node.kind}",
+        "", 0)
 
 proc flattenPatt(node: NimNode): PattTree =
+  # echo node.treeRepr()
   case node.kind:
     of nnkIdent, nnkStrLit:
       return newPattTree(node)
@@ -122,8 +132,17 @@ proc flattenPatt(node: NimNode): PattTree =
       result.elems.reverse
     of nnkPar:
       result = node[0].flattenPatt()
+    of nnkBracket:
+      if node.len > 1:
+        raise toCodeError(
+          node[1], "Expected one element for optional brace",
+          "Use `&` for concatenation")
+
+      result = PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
+        node[0].flattenPatt()
+      ])
     else:
-      debugecho node.treeRepr()
+      raise toCodeError(node, "Unexpected node kind", $node.kind)
 
 proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
@@ -194,7 +213,8 @@ macro makeGrammarImpl*(body: untyped): untyped =
       block:
         raiseAssert("Fail")
 
-  echo result.toStrLit()
+  # echo result.toStrLit()
+  # echo result.treeRepr()
 
 template makeGrammar*[C, L](body: untyped): untyped =
   block:
