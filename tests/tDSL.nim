@@ -155,4 +155,12 @@ suite "Grammar DSL API":
     do:
       {"A" : ntUsr("B")}
 
-  # test "{makeGrammar} with `void` category"
+  test "{makeGrammar} with `void` category":
+    let grammar = makeGrammar[void, string]:
+      A ::= "hello"
+
+    assertEq do:
+      makeGrammar[void, string]:
+        A ::= "hello111"
+    do:
+      {"A" : voidCatTok("hello111")}

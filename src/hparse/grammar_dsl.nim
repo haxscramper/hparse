@@ -193,11 +193,18 @@ macro makeGrammarImpl*(body: untyped): untyped =
         pprintErr
       block:
         raiseAssert("Fail")
-  # echo result.treeRepr()
+
+  echo result.toStrLit()
 
 template makeGrammar*[C, L](body: untyped): untyped =
   block:
     proc nt(str: string): Patt[C, L] = nterm[C, L](str)
-    proc tok(lex: string): Patt[C, L] = tok[C, L](tkA, lex)
-    proc tok(lex: C): Patt[C, L] = tok[C, L](tkA)
+    when C is void:
+      proc tok(lex: string): Patt[C, L] = voidCatTok[L](lex)
+    else:
+      proc tok(lex: string): Patt[C, L] = tok[C, L](C(0), lex)
+
+    when not (C is void):
+      proc tok(lex: C): Patt[C, L] = tok[C, L](C(0))
+
     makeGrammarImpl(body)

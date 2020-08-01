@@ -53,6 +53,9 @@ func makeExpToken*[C, L](category: C, lexeme: L): ExpectedToken[C, L] =
 func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
   ExpectedToken[C, L](cat: category, hasLex: false)
 
+func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
+  ExpectedToken[void, L](hasLex: true, lex: lex)
+
 func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
   ## Return true if token `tok` matches with expected token `exp`
   # TODO IMPLEMENT
@@ -102,16 +105,26 @@ func contains*[L](lset: LexSet[L], lex: L): bool =
   lex in lset.lexemes
 
 func `==`*[C, L](l, r: ExpectedToken[C, L]): bool =
-  if (l.cat == r.cat) and (l.hasLex == r.hasLex):
-    if l.hasLex:
-      when L is void:
-        true
+  when not (C is void):
+    if (l.cat == r.cat) and (l.hasLex == r.hasLex):
+      if l.hasLex:
+        when L is void:
+          true
+        else:
+          l.lex == r.lex
       else:
-        l.lex == r.lex
+        true
     else:
-      true
+      false
   else:
-    false
+    if (l.hasLex == r.hasLex):
+      if l.hasLex:
+        l.lex == r.lex
+      else:
+        true
+    else:
+      false
+
 
 #==============================  Accessors  ==============================#
 
