@@ -12,4 +12,4 @@ srcDir        = "src"
 
 requires "nim >= 1.2.4"
 requires "regex"
-requires "hmisc", "hasts"
+requires "hmisc", "hasts", "hpprint"

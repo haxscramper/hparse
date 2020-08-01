@@ -26,7 +26,7 @@ type
       of pkAlternative, pkConcat:
         patts*: seq[Patt[C, L]]
       of pkOptional, pkZeroOrMore, pkOneOrMore:
-        item: seq[Patt[C, L]] ## Single instance that will be repeated
+        item*: seq[Patt[C, L]] ## Single instance that will be repeated
         ## [0..1], [0..n] or [1..n] times respectively
 
   Rule*[C, L] = object

@@ -54,8 +54,16 @@ func newPattTree(prefix: string, patt: PattTree): PattTree =
       PattTree(kind: ptkTreeAction, prefix: prefix, elementItem: @[patt])
     of "*", "+":
       PattTree(kind: ptkPrefix, prefix: prefix, elementItem: @[patt])
+    of "!*", "!+", "@+", "@*", "^*", "^+":
+      PattTree(kind: ptkTreeAction, prefix: $prefix[0], elementItem: @[
+        PattTree(kind: ptkPrefix, prefix: $prefix[1], elementItem: @[patt])
+      ])
+    of "^@*", "^@+":
+      PattTree(kind: ptkTreeAction, prefix: "^@", elementItem: @[
+        PattTree(kind: ptkPrefix, prefix: $prefix[2], elementItem: @[patt])
+      ])
     else:
-      raiseAssert("Unexpected prefix ident: {prefix}")
+      raiseAssert(&"Unexpected prefix ident: '{prefix}'")
 
 
 proc flattenPatt(node: NimNode): PattTree
@@ -109,9 +117,9 @@ proc toCalls(patt: PattTree): NimNode =
           of "^": "taPromote"
           of "@": "taSpliceDiscard"
           of "!": "taDrop"
-          of "^@:": "taSplicePromote"
+          of "^@": "taSplicePromote"
           else:
-            raiseAssert(&"Invalid tree action prefix: {patt.prefix}")
+            raiseAssert(&"Invalid tree action prefix: '{patt.prefix}'")
 
       newCall(
         "addAction",
@@ -160,7 +168,7 @@ macro makeGrammarImpl*(body: untyped): untyped =
       newLit($rule[1]),
       rule[2].flattenPatt().toCalls())
 
-  echo result.tostrLit()
+  # echo result.treeRepr()
 
 template makeGrammar*[C, L](body: untyped): untyped =
   block:

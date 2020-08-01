@@ -2,6 +2,9 @@ import sugar, strutils, sequtils, strformat
 import hmisc/helpers
 import hparse/[grammars, grammar_dsl, parse_tree, parse_primitives]
 
+import hpprint/objdiff
+import hmisc/macros/obj_field_macros
+
 #===========================  implementation  ============================#
 
 #================================  tests  ================================#
@@ -24,6 +27,9 @@ proc tok(lex: string): auto = tok[TKind, string](tkA, lex)
 proc tok(lex: TKind): auto = tok[TKind, string](tkA)
 
 suite "Grammar DSL":
+  template grm(body: untyped): untyped =
+    makeGrammarImpl(body)
+
   test "Grammar literal construction":
     assertEq makeGrammarImpl(A ::= Q & B & C), {
       "A" : andP(nt("Q"), nt("B"), nt("C"))
@@ -63,6 +69,7 @@ suite "Grammar DSL":
        }
 
   test "Grammar tree actions":
+    # TODO TEST subrule
     assertEq makeGrammarImpl(A ::= !B), {
       "A" : nt("B").addAction(taDrop)
     }
@@ -74,3 +81,39 @@ suite "Grammar DSL":
     assertEq makeGrammarImpl(A ::= (A | !B) & C), {
       "A" : andP(orP(nt("A"), nt("B").addAction(taDrop)), nt("C"))
     }
+
+    assertEq makeGrammarImpl(A ::= !B & @C & ^D & ^@E), {
+      "A" : andP(
+        nt("B").addAction(taDrop),
+        nt("C").addAction(taSpliceDiscard),
+        nt("D").addAction(taPromote),
+        nt("E").addAction(taSplicePromote)
+      )
+    }
+
+    assertEq makeGrammarImpl(A ::= !*(C) & U), {
+      "A" : andP(zeroP(nt("C")).addAction(taDrop), nt("U"))
+    }
+
+    assertEq grm(A ::= !*B), grm(A ::= !(*B))
+    assertEq grm(A ::= !*B & !+C), grm(A ::= !(*B) & !(+C))
+
+    assertNoDiff do:
+      makeGrammarImpl:
+        A ::= !*A & !+B
+        B ::= ^*(E) & ^+(E) & @+(Z) & (@O | ^@*(E))
+    do:
+      {
+        "A" : andP(
+          zeroP(nt("A")).addAction(taDrop) ,
+          oneP(nt("B")).addAction(taDrop)),
+        "B" : andP(
+          zeroP(nt("E")).addAction(taPromote),
+          oneP(nt("E")).addAction(taPromote),
+          oneP(nt("Z").addAction(taSpliceDiscard)),
+          orP(
+            nt("O").addAction(taSpliceDiscard),
+            zeroP(nt("E")).addAction(taSplicePromote)
+          )
+        )
+      }
