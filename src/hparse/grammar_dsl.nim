@@ -15,6 +15,7 @@ type
     ptkTreeAction
     ptkPrefix
     ptkInfix
+    ptkCall
 
   PattTree = object
     case kind: PattTreeKind
@@ -30,6 +31,8 @@ type
       of ptkInfix:
         infix: string
         elems: seq[PattTree]
+      of ptkCall:
+        expr: NimNode
 
 func `==`*(lhs, rhs: PattTree): bool =
   lhs.kind == rhs.kind and (
@@ -43,6 +46,8 @@ func `==`*(lhs, rhs: PattTree): bool =
       of ptkInfix:
         (lhs.infix == rhs.infix) and
         subnodesEq(lhs, rhs, elems)
+      of ptkCall:
+        (lhs.expr == rhs.expr)
   )
 
 func newPattTree(infix: string, elems: seq[PattTree]): PattTree =
@@ -62,6 +67,8 @@ func newPattTree(prefix: string, patt: PattTree): PattTree =
       PattTree(kind: ptkTreeAction, prefix: "^@", elementItem: @[
         PattTree(kind: ptkPrefix, prefix: $prefix[2], elementItem: @[patt])
       ])
+    # of "%":
+    #   PattTree(kind: ptkTemplate, )
     else:
       raiseAssert(&"Unexpected prefix ident: '{prefix}'")
 
@@ -91,7 +98,11 @@ proc flattenPatt(node: NimNode): PattTree =
     of nnkIdent, nnkStrLit:
       return newPattTree(node)
     of nnkPrefix:
-      return newPattTree($node[0], flattenPatt(node[1]))
+      case $node[0]:
+        of "%":
+          return PattTree(kind: ptkCall, expr: node[1])
+        else:
+          return newPattTree($node[0], flattenPatt(node[1]))
     of nnkInfix:
       var curr = node
       let infix = $node[0]
@@ -111,6 +122,8 @@ proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
     of ptkStrLiteral:
       newCall("tok", newLit(patt.strVal))
+    of ptkCall:
+      patt.expr
     of ptkTreeAction:
       let actionName: string =
         case patt.prefix:

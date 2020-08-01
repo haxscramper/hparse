@@ -1,4 +1,4 @@
-import sugar, strutils, sequtils, strformat
+import sugar, strutils, sequtils, strformat, macros
 import hmisc/helpers
 import hparse/[grammars, grammar_dsl, parse_tree, parse_primitives]
 
@@ -21,6 +21,10 @@ type
   Tkind = enum
     tkA
     tkB
+
+dumpTree:
+  %hello(12, 3)
+
 
 let nt = nterm[TKind, string]
 proc tok(lex: string): auto = tok[TKind, string](tkA, lex)
@@ -110,10 +114,22 @@ suite "Grammar DSL":
         "B" : andP(
           zeroP(nt("E")).addAction(taPromote),
           oneP(nt("E")).addAction(taPromote),
-          oneP(nt("Z").addAction(taSpliceDiscard)),
+          oneP(nt("Z")).addAction(taSpliceDiscard),
           orP(
             nt("O").addAction(taSpliceDiscard),
             zeroP(nt("E")).addAction(taSplicePromote)
           )
         )
       }
+
+  test "Grammar template rules":
+    proc csvList(str: string): Patt[TKind, string] =
+      andP(tok(str), zeroP(andP(tok(","), tok(str))))
+
+    assertEq grm(A ::= %csvList("cat")), {
+      "A" : csvList("cat")
+    }
+
+    assertEq grm(A ::= %csvList("cat")), {
+      "A" : andP(tok("cat"), zeroP(andP(tok(","), tok("cat"))))
+    }
