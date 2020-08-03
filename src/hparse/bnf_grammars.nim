@@ -5,6 +5,7 @@ import parse_primitives
 import sets, hashes, sequtils, strformat, strutils
 import hmisc/helpers
 import hmisc/algo/clformat
+import hmisc/types/colorstring
 
 #*************************************************************************#
 #**************************  Type declarations  **************************#
@@ -42,6 +43,7 @@ type
 #*************************************************************************#
 type
   RuleProd*[C, L] = object
+    # actions*: ActLookup
     symbols*: seq[FlatBnf[C, L]]
 
 func initRuleProd*[C, L](symbols: seq[FlatBnf[C, L]]): RuleProd[C, L] =
@@ -49,6 +51,15 @@ func initRuleProd*[C, L](symbols: seq[FlatBnf[C, L]]): RuleProd[C, L] =
 
 func concat*[C, L](lhs, rhs: RuleProd[C, L]): RuleProd[C, L] =
   result.symbols = lhs.symbols & rhs.symbols
+  # result.actions = lhs.actions
+
+  # for pos, action in rhs.actions:
+  #   result.actions[pos + lhs.symbols.len] = action
+
+func getActions*[C, L](prod: RuleProd[C, L]): ActLookup =
+  for idx, sym in prod.symbols:
+    if sym.action != taDefault:
+      result[idx] = sym.action
 
 iterator items*[C, L](prod: RuleProd[C, L]): FlatBnf[C, L] =
   for sym in prod.symbols:
@@ -72,18 +83,18 @@ func `[]`*[C, L](prod: RuleProd[C, L], idx: int): FlatBnf[C, L] =
 type
   BnfPatt*[C, L] = ref object # REVIEW is it necessary to use `ref`?
     ## Recursive of flat bnf pattern
-    action*: TreeAct
-    actions*: ActLookup
     case flat*: bool
       of false:
         case kind*: BnfPattKind
           of bnfEmpty:
             nil
           of bnfNterm:
+            action*: TreeAct
             nterm*: BnfNTerm ## Nonterminal to parse
           of bnfTerm:
             tok*: ExpectedToken[C, L] ## Single token to match literally
           of bnfAlternative, bnfConcat:
+            actions*: ActLookup
             patts*: seq[BnfPatt[C, L]] ## Concatenation/list of alternatives
       of true:
         elems*: RuleProd[C, L] ## Flat bnf - concatenation of
@@ -221,12 +232,15 @@ func toBNF*[C, L](
         result.newrules &= bnfRules
 
       if patt.kind == pkAlternative:
-        result.toprule = BnfPatt[C, L](flat: false, kind: bnfAlternative, patts: newsubp)
+        result.toprule = BnfPatt[C, L](
+          flat: false, kind: bnfAlternative, patts: newsubp)
       else:
-        result.toprule = BnfPatt[C, L](flat: false, kind: bnfConcat, patts: newsubp)
+        result.toprule = BnfPatt[C, L](
+          flat: false, kind: bnfConcat, patts: newsubp)
     of pkZeroOrMore:
       let newsym = makeBnfNterm(parent, idx)
-      result.toprule = BnfPatt[C, L](flat: false, kind: bnfNterm, nterm: newsym)
+      result.toprule = BnfPatt[C, L](
+        flat: false, kind: bnfNterm, nterm: newsym)
       let (body, subnewrules) = toBNF(patt.opt, parent, idx & @[0])
       result.newrules = @[
         BnfRule[C, L](
@@ -290,14 +304,19 @@ func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
      of bnfNterm:
        return @[ initRuleProd(@[ FlatBnf[C, L](isTerm: false, nterm: patt.nterm) ]) ]
      of bnfConcat:
+       debugecho patt.exprRepr()
        for idx, sub in patt.patts:
          var newpatts: seq[RuleProd[C, L]]
-         for patt in sub.flatten():
+         for flat in sub.flatten():
+           let flat = flat.withIt:
+             if idx in patt.actions:
+               it.symbols[0].action = patt.actions[idx]
+
            if result.len == 0:
-             newpatts.add patt
+             newpatts.add flat
            else:
              for val in result: # Concatenate head with alternative
-               newpatts.add concat(val, patt)
+               newpatts.add concat(val, flat)
 
          result = newpatts
        for it in result:
@@ -381,6 +400,18 @@ func first*[C, L](patt: BnfPatt[C, L]): FlatBnf[C, L] =
 
 #===========================  Pretty-printing  ===========================#
 
+func exprRepr*(ta: TreeAct,
+               conf: GrammarPrintConf = defaultGrammarPrintConf): string =
+  result = case ta:
+    of taDefault: ""
+    of taDrop: "!"
+    of taSubrule: "v"
+    of taSpliceDiscard: "@"
+    of taSplicePromote: "^@"
+    of taPromote: "^"
+
+  return result.toRed(conf.colored)
+
 func exprRepr*(nterm: BnfNTerm, normalize: bool = false): string =
   if nterm.generated:
     if normalize:
@@ -402,9 +433,13 @@ func exprRepr*[C, L](
     toGreen(&"{fbnf.tok.cat}{lex}", conf.colored).wrap(conf.termWrap)
   else:
     mixin toYellow
-    toYellow(
-      fbnf.nterm.exprRepr(conf.normalizeNterms),
-      conf.colored
+    (
+      (fbnf.action != taDefault).tern(
+        fbnf.action.exprRepr(conf) & " + ", "") &
+      toYellow(
+        fbnf.nterm.exprRepr(conf.normalizeNterms),
+        conf.colored
+      )
     ).wrap(conf.ntermWrap)
     # of fbkNterm:
     # of fbkTerm:
@@ -426,9 +461,18 @@ func exprRepr*[C, L](
       of bnfTerm:
         ($bnf.tok).wrap(conf.termWrap)
       of bnfNTerm:
-        (bnf.nterm.exprRepr()).wrap(conf.ntermWrap)
+        toYellow(bnf.nterm.exprRepr(), conf.colored
+        ).wrap(conf.ntermWrap)
       of bnfAlternative, bnfConcat:
-        bnf.patts.mapIt(exprRepr(it, conf)).join(
+        var buf: seq[string]
+        for idx, subp in bnf.patts:
+          if idx in bnf.actions:
+            buf.add &"{bnf.actions[idx].exprRepr(conf)}{subp.exprRepr(conf)}"
+          else:
+            buf.add &"{subp.exprRepr(conf)}"
+
+
+        buf.join(
           (bnf.kind == bnfConcat).tern(conf.concatSep, conf.alternSep)
         ).wrap("{  }")
 
@@ -480,6 +524,9 @@ func exprRepr*(id: RuleId, normalize: bool = false): string =
 func exprRepr*[C, L](prod: RuleProd[C, L],
                      conf: GrammarPrintConf = defaultGrammarPrintConf
                     ): string =
+  # var buf: seq[string]
+  # for idx, sym in prod:
+  #   buf.add fmt("{it.exprRepr(conf)}")
   prod.mapIt(it.exprRepr(conf)).join(" ")
 
 

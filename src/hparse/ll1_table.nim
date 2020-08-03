@@ -327,7 +327,7 @@ proc parse*[C, L, I](
       let stackadd = parser.grammar.getProductions(rule)
       ntermStack.add TermProgress[C, L, I](
         nterm: rule.head, expected: stackadd.len,
-        acts: parser.grammar.getActions(rule))
+        acts: stackadd.getActions())
 
       stack &= stackadd.reversed()
 
@@ -338,11 +338,11 @@ proc parse*[C, L, I](
         ntermStack.last().elems.add(
           if last.nterm.generated:
             if parser.retainGenerated:
-              newTree(last.nterm.exprRepr(), last.elems)
+              newTree(last.nterm.exprRepr(), last.elems, last.acts)
             else:
-              newTree(last.elems)
+              newTree(last.elems, last.acts)
           else:
-            newTree(last.nterm.name, last.elems)
+            newTree(last.nterm.name, last.elems, last.acts)
         )
       else:
         result = newTree(last.nterm.name, last.elems)
