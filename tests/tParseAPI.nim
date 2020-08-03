@@ -80,7 +80,7 @@ suite "Parser generation tests":
       @["hello", "!!", "!!", "!!", "world"]).makeStream().withResIt:
         parser.parse(it)
 
-    echo parser.getGrammar().exprRepr()
+    # echo parser.getGrammar().exprRepr()
 
     echo tree.treeRepr()
 
@@ -93,3 +93,42 @@ suite "Parser generation tests":
       parser.parse(it)
 
     echo tree[0].treeRepr()
+
+suite "Compare parsers table vs codegen LL(1)":
+  template testparse(tokens, grammarBody: untyped): untyped =
+    let grammarVal =
+      block:
+        initGrammarCalls(NoCategory, string)
+        initGrammarImpl(grammarBody)
+      # initGrammar[NoCategory, string]:
+      # grammarBody
+
+    const grammarConst =
+      block:
+        initGrammarCalls(NoCategory, string)
+        initGrammarImpl(grammarBody)
+
+    let tableParser = newLL1TableParser[NoCategory, string](
+      grammarVal.toGrammar())
+    let tableTree = makeTokens(tokens).makeStream().withResIt:
+      tableParser.parse(it)
+
+    let recParser = newLL1RecursiveParser[NoCategory, string, void](grammarConst)
+    let recTree = makeTokens(tokens).makeStream().withResIt:
+      recParser.parse(it)
+
+    echo "Recursive tree"
+    echo recTree.treeRepr()
+
+    echo "Table tree"
+    echo tableTree.treeRepr()
+
+  test "Primitive grammar":
+    testparse(@["e", "E"]):
+      A ::= "e" & "E"
+
+  test "List DSL":
+    testparse(@["[", "i", ",", "i", ",", "i", ",", "i", "]"]):
+      List ::= !"[" & Elements & !"]"
+      Elements ::= Element & @*(@(!"," & Element))
+      Element ::= "i" | List

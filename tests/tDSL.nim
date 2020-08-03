@@ -164,6 +164,21 @@ suite "Grammar base":
       }
 
 
+    assertEq do:
+      initGrammarImpl:
+        List ::= "[" & Elements & "]"
+        Elements ::= Element & @*(!"," & Element)
+        Element ::= tkA | List
+    do:
+       {
+         "List" : andP(tok("["), nt("Elements"), tok("]")),
+         "Elements" : andP(
+           nt("Element"), zeroP(
+             andP(tok(",").addAction(taDrop), nt("Element"))
+           ).addAction(taSpliceDiscard)),
+         "Element" : orP(tok(tkA), nt("List"))
+       }
+
   test "Grammar template rules":
     proc csvList(str: string): Patt[TKind, string] =
       andP(tok(str), zeroP(andP(tok(","), tok(str))))

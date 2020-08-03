@@ -304,7 +304,7 @@ func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
      of bnfNterm:
        return @[ initRuleProd(@[ FlatBnf[C, L](isTerm: false, nterm: patt.nterm) ]) ]
      of bnfConcat:
-       debugecho patt.exprRepr()
+       # debugecho patt.exprRepr()
        for idx, sub in patt.patts:
          var newpatts: seq[RuleProd[C, L]]
          for flat in sub.flatten():
@@ -319,8 +319,8 @@ func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
                newpatts.add concat(val, flat)
 
          result = newpatts
-       for it in result:
-         debugecho it.exprRepr()
+       # for it in result:
+       #   debugecho it.exprRepr()
      of bnfAlternative:
        for alt in patt.patts:
          result &= alt.flatten()
