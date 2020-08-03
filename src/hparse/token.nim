@@ -45,6 +45,9 @@ type
       of false:
         nil
 
+  NoCategory* = enum
+    catNoCategory
+
 #============================  Constructors  =============================#
 
 func makeExpToken*[C, L](category: C, lexeme: L): ExpectedToken[C, L] =
@@ -76,6 +79,11 @@ func makeTokenNoInfo*[C, L](cat: C, lex: L): Token[C, L, void] =
 
 func makeTokens*[C, L](cats: seq[C]): seq[Token[C, L, void]] =
   cats.mapIt(Token[C, L, void](cat: it))
+
+func makeTokens*(lexemes: seq[string]
+                ): seq[Token[NoCategory, string, void]] =
+  lexemes.mapIt(Token[NoCategory, string, void](lex: it))
+
 
 #==============================  Accessors  ==============================#
 func setPosInfo*[C, L](tok: var Token[C, L, LexInfo], pos: int): void =

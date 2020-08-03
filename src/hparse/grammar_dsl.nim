@@ -237,9 +237,9 @@ proc generateGrammar*(body: NimNode): NimNode =
   # echo result.toStrLit()
 
 
-macro makeGrammarImpl*(body: untyped): untyped = generateGrammar(body)
+macro initGrammarImpl*(body: untyped): untyped = generateGrammar(body)
 
-template makeGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
+template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
   when catT is void:
     proc tok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
@@ -247,16 +247,18 @@ template makeGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
     proc tok(lex: string): Patt[catT, lexT] = tok[catT, lexT](catT(0), lex)
 
   when not (catT is void):
-    proc tok(lex: catT): Patt[catT, lexT] = grammars.tok[catT, lexT](catT(0))
+    proc tok(cat: catT): Patt[catT, lexT] =
+      grammars.tok[catT, lexT](cat)
 
 
-template makeGrammar*[C, L](body: untyped): untyped =
+template initGrammar*[C, L](body: untyped): untyped =
+  # static: echo body.astTostr()
   block:
-    makeGrammarCalls(C, L)
-    makeGrammarImpl(body)
+    initGrammarCalls(C, L)
+    initGrammarImpl(body)
 
-template makeGrammarConst*[C, L](cname: untyped, body: untyped): untyped =
+template initGrammarConst*[C, L](cname: untyped, body: untyped): untyped =
   const cname =
     block:
-      makeGrammarCalls(C, L)
-      makeGrammarImpl(body)
+      initGrammarCalls(C, L)
+      initGrammarImpl(body)

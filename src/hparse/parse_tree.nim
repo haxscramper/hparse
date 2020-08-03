@@ -2,7 +2,7 @@ import parse_primitives, token
 import sequtils, strformat, strutils, colors
 
 import hasts/[graphviz_ast, html_ast]
-import hmisc/types/[ hprimitives ]
+import hmisc/types/[ hprimitives, colorstring ]
 import hmisc/algo/htree_mapping
 import hmisc/helpers
 
@@ -251,11 +251,15 @@ func treeReprImpl*[C, L, I](
     ""
   )
 
+  mixin toGreen
   result = case node.kind:
     of ptkToken:
-      @[ fmt(
-        "{prefStr}[{node.tok.cat.tokKindStr(kindPref)}, '{node.tok.lex}']"
-      ) ]
+      when (C is NoCategory) and (L is string):
+        @[ fmt("{prefStr}'{toGreen(node.tok.lex, true)}'") ]
+      else:
+        @[ fmt(
+          "{prefStr}[{node.tok.cat.tokKindStr(kindPref)}, '{node.tok.lex}']"
+        ) ]
     of ptkNTerm:
       @[ fmt("{prefStr}{node.nterm}") ]
     of ptkList:
@@ -275,7 +279,7 @@ func lispReprImpl*[C, L, I](
   kindPref: string, discardEmpty: bool): seq[string] =
   case node.kind:
     of ptkToken:
-      var kindStr = $node.tok.kind
+      var kindStr = $node.tok.cat
       if kindStr.startsWith(kindPref):
         kindStr = kindStr[kindPref.len .. ^1]
 

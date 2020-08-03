@@ -1,6 +1,22 @@
 import sugar, strutils, sequtils, strformat, macros
 import hmisc/helpers
-import hparse/[grammars, grammar_dsl, parse_tree, parse_primitives]
+import hparse/[
+  grammars,
+  grammar_dsl,
+  parse_tree,
+  parse_primitives,
+  token,
+
+  # grammar_dsl,
+  # parse_tree,
+  # grammars,
+  # token,
+  # lexer,
+  # ll1_gen,
+  # ll1_table,
+  # parse_primitives,
+  # bnf_grammars
+]
 
 import hpprint/objdiff
 import hmisc/macros/obj_field_macros
@@ -31,32 +47,32 @@ suite "Grammar base":
 
 
   template grm(body: untyped): untyped =
-    makeGrammarImpl(body)
+    initGrammarImpl(body)
 
   test "Grammar literal construction":
-    discard makeGrammarImpl(A ::= tkA & tkB)
+    discard initGrammarImpl(A ::= tkA & tkB)
 
-    assertEq makeGrammarImpl(A ::= Q & B & C), {
+    assertEq initGrammarImpl(A ::= Q & B & C), {
       "A" : andP(nt("Q"), nt("B"), nt("C"))
     }
 
-    assertEq makeGrammarImpl(A ::= B & C), {
+    assertEq initGrammarImpl(A ::= B & C), {
       "A" : andP(nt("B"), nt("C"))
     }
 
-    assertEq makeGrammarImpl(A ::= tkA & tkB), {
+    assertEq initGrammarImpl(A ::= tkA & tkB), {
       "A" : andP(tok(tkA), tok(tkB))
     }
 
-    assertEq makeGrammarImpl(A ::= "$" & Z), {
+    assertEq initGrammarImpl(A ::= "$" & Z), {
       "A" : andP(tok("$"), nt("Z"))
     }
 
-    assertEq makeGrammarImpl(A ::= "$" & *(Z & A)), {
+    assertEq initGrammarImpl(A ::= "$" & *(Z & A)), {
       "A" : andP(tok("$"), zeroP(andP(nt("Z"), nt("A"))))
     }
 
-    assertEq makeGrammarImpl(A ::= (A | B) & C), {
+    assertEq initGrammarImpl(A ::= (A | B) & C), {
       "A" : andP(orP(nt("A"), nt("B")), nt("C"))
     }
 
@@ -64,12 +80,12 @@ suite "Grammar base":
     assertEq do:
         {"A" : nt("B"), "C" : nt("D")}
     do:
-      makeGrammarImpl:
+      initGrammarImpl:
         A ::= B
         C ::= D
 
     assertEq do:
-      makeGrammarImpl:
+      initGrammarImpl:
         List ::= "[" & Elements & "]"
         Elements ::= Element & *("," & Element)
         Element ::= tkA | List
@@ -89,19 +105,19 @@ suite "Grammar base":
 
 
   test "Grammar tree actions":
-    assertEq makeGrammarImpl(A ::= !B), {
+    assertEq initGrammarImpl(A ::= !B), {
       "A" : nt("B").addAction(taDrop)
     }
 
-    assertEq makeGrammarImpl(A ::= !B & C), {
+    assertEq initGrammarImpl(A ::= !B & C), {
       "A" : andP(nt("B").addAction(taDrop), nt("C"))
     }
 
-    assertEq makeGrammarImpl(A ::= (A | !B) & C), {
+    assertEq initGrammarImpl(A ::= (A | !B) & C), {
       "A" : andP(orP(nt("A"), nt("B").addAction(taDrop)), nt("C"))
     }
 
-    assertEq makeGrammarImpl(A ::= !B & @C & ^D & ^@E), {
+    assertEq initGrammarImpl(A ::= !B & @C & ^D & ^@E), {
       "A" : andP(
         nt("B").addAction(taDrop),
         nt("C").addAction(taSpliceDiscard),
@@ -110,7 +126,7 @@ suite "Grammar base":
       )
     }
 
-    assertEq makeGrammarImpl(A ::= !*(C) & U), {
+    assertEq initGrammarImpl(A ::= !*(C) & U), {
       "A" : andP(zeroP(nt("C")).addAction(taDrop), nt("U"))
     }
 
@@ -128,7 +144,7 @@ suite "Grammar base":
     assertEq grm(A ::= !*B & !+C), grm(A ::= !(*B) & !(+C))
 
     assertNoDiff do:
-      makeGrammarImpl:
+      initGrammarImpl:
         A ::= !*A & !+B
         B ::= ^*(E) & ^+(E) & @+(Z) & (@O | ^@*(E))
     do:
@@ -161,7 +177,7 @@ suite "Grammar base":
     }
 
 suite "Grammar DSL API":
-  test "{makeGrammar} template":
+  test "{initGrammar} template":
     # TODO test `void` category type with string lexemes
     type
       En = enum
@@ -172,46 +188,51 @@ suite "Grammar DSL API":
     proc tokUsr(lex: string): auto = tok[En, string](tkA, lex)
     proc tokUsr(lex: En): auto = tok[En, string](tkA)
 
-    let grammar = makeGrammar[En, string]:
+    let grammar = initGrammar[En, string]:
       A ::= B
 
     block:
-      discard makeGrammar[En, string]:
+      discard initGrammar[En, string]:
         A ::= tkA & tkB
 
-      # assertEq do:
-      #   makeGrammar[En, string]:
-      #     A ::= tkA & tkB
-      # do:
-      #   {"A" : andP(tok[En, string](tkA), tok[En, string](tkB))}
+      assertEq do:
+        initGrammar[En, string]:
+          A ::= tkA & tkB
+      do:
+        {"A" : andP(tok[En, string](tkA), tok[En, string](tkB))}
 
       const grm0 = {"A" : andP(tok[En, string](tkA), tok[En, string](tkB))}
 
-      let grm = makeGrammar[En, string]:
+      let grm = initGrammar[En, string]:
         A ::= tkA & tkB
 
-      # const grm2 = makeGrammar[En, string]:
+      # const grm2 = initGrammar[En, string]:
       #   A ::= tkA & tkB
 
     assertEq do:
-      makeGrammar[En, string]:
+      initGrammar[En, string]:
         A ::= B
     do:
       {"A" : ntUsr("B")}
 
-  test "{makeGrammar} with `void` category":
-    let grammar = makeGrammar[void, string]:
+  test "{initGrammar} with `void` category":
+    let grammar = initGrammar[void, string]:
       A ::= "hello"
 
     assertEq do:
-      makeGrammar[void, string]:
+      initGrammar[void, string]:
         A ::= "hello111"
     do:
       {"A" : voidCatTok("hello111")}
 
 
-  test "{makeGrammarConst}":
-    makeGrammarConst[void, string](grammar):
+  test "{initGrammarConst}":
+    initGrammarConst[void, string](grammar):
       A ::= B
 
     assertEq grammar, {"A" : nterm[void, string]("B")}
+
+  test "{initGrammar} with `NoCategory`":
+    let grammar = initGrammar[NoCategory, string]:
+      A ::= "hello" & *(B) & "world"
+      B ::= "!!"
