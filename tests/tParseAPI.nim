@@ -9,6 +9,7 @@ import ../src/hparse/[
   lexer,
   ll1_gen,
   ll1_table,
+  earley,
   parse_primitives,
   bnf_grammars
 ]
@@ -80,3 +81,13 @@ suite "Parser generation tests":
         parser.parse(it)
 
     echo tree.treeRepr()
+
+  test "Earley parser":
+    let grammar = initGrammar[NoCategory, string]:
+      A ::= "1" & "2"
+
+    let parser = newEarleyParser[NoCategory, string](grammar.toGrammar())
+    let tree = makeTokens(@["1", "2"]).makeStream().withResIt:
+      parser.parse(it)
+
+    echo tree[0].treeRepr()

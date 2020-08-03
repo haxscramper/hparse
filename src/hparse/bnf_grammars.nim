@@ -74,7 +74,6 @@ type
     ## `BnfPatt.flat == true`.
 
 
-
 #============================  Aux functions  ============================#
 
 func hash*(nterm: BnfNTerm): Hash =
@@ -485,3 +484,38 @@ func initRuleLookup*[C, L](first: TokSet[C, L],
 #========================  Other implementation  =========================#
 
 #===========================  Pretty-printing  ===========================#
+
+
+#*************************************************************************#
+#*************************  Items and item sets  *************************#
+#*************************************************************************#
+
+type
+  GItem* = object
+    ruleId*: RuleId
+    startPos*: int
+    nextPos*: int
+
+  GItemSet* = object
+    gitems*: seq[GItem]
+
+func len*(itemset: GItemSet): int = itemset.gitems.len
+func `[]`*(itemset: GItemSet, idx: int): GItem = itemset.gitems[idx]
+iterator items*(itemset: GItemSet): GItem =
+  for it in itemset.gitems:
+    yield it
+
+func append*[A](a: var seq[A], b: A): void =
+  for it in a:
+    if it == b:
+      return
+
+  a.add b
+
+func append*(itemset: var GItemSet, item: GItem): void =
+  itemset.gitems.append item
+
+func add*(itemset: var GItemSet, item: GItem): void =
+  itemset.gitems.add item
+
+

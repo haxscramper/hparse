@@ -5,16 +5,11 @@ import strformat, strutils, sequtils, sets
 import hmisc/helpers
 
 type
-  EItem = object
-    ruleId: RuleId
-    startPos: int
-    nextPos: int
-
   SItemId = object
     ruleId: RuleId
     finish: int
 
-  State = seq[seq[EItem]]
+  State = seq[GItemSet]
   Chart = seq[seq[SItemId]]
   NullSet = object
     nulls: HashSet[BnfNterm]
@@ -22,6 +17,9 @@ type
   EarleyParser[C, L] = object
     start: BnfNterm
     grammar: BnfGrammar[C, L]
+
+func add*(state: var State, itemset: seq[GItem]): void =
+  state.add GItemSet(gitems: itemset)
 
 #*************************************************************************#
 #**************************  Helper functions  ***************************#
@@ -38,14 +36,8 @@ func matches[C, L, I](sym: FlatBnf[C, L],
 func contains*(ns: NullSet, s: BnfNterm): bool = s in ns.nulls
 func len*(ns: NullSet): int = ns.nulls.len
 
-func append[A](a: var seq[A], b: A): void =
-  for it in a:
-    if it == b:
-      return
 
-  a.add b
-
-func nextSymbol[C, L](gr: BnfGrammar[C, L], item: EItem): Option[FlatBnf[C, L]] =
+func nextSymbol[C, L](gr: BnfGrammar[C, L], item: GItem): Option[FlatBnf[C, L]] =
   if gr.ruleBody(item.ruleId).len > item.nextPos:
     some(gr.ruleBody(item.ruleId)[item.nextPos])
   else:
@@ -158,7 +150,7 @@ func predict[C, L](state: var State,
   let symbol = symbol.nterm
   for (ruleId, _) in gr.iterrules():
     if ruleId.head == symbol:
-      state[i].append(EItem(ruleId: ruleId, startPos: i, nextPos: 0))
+      state[i].append(GItem(ruleId: ruleId, startPos: i, nextPos: 0))
 
     if symbol in nullable:
       state[i].append state[i][j].withIt do:
@@ -198,7 +190,7 @@ func buildItems[C, L, I](parser: EarleyParser[C, L],
                          toks: TokStream[Token[C, L, I]]): State =
   let nullable = nullableSymbols(parser.grammar)
   for ruleId in parser.grammar.iterrules(parser.start):
-    result.add @[EItem(ruleId: ruleId, startPos: 0, nextPos: 0)]
+    result.add @[GItem(ruleId: ruleId, startPos: 0, nextPos: 0)]
 
   var itemset = 0
   while itemset < result.len:
