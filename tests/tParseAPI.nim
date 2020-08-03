@@ -80,6 +80,8 @@ suite "Parser generation tests":
       @["hello", "!!", "!!", "!!", "world"]).makeStream().withResIt:
         parser.parse(it)
 
+    echo parser.getGrammar().exprRepr()
+
     echo tree.treeRepr()
 
   test "Earley parser":

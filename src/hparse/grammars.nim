@@ -125,6 +125,7 @@ type
     termWrap*: (string, string)
     normalizeNterms*: bool
     enumerateAlts*: bool
+    colored*: bool
 
 const defaultGrammarPrintConf*: GrammarPrintConf = GrammarPrintConf(
   emptyProd: "ε",
@@ -133,7 +134,8 @@ const defaultGrammarPrintConf*: GrammarPrintConf = GrammarPrintConf(
   alternSep: " | ",
   ntermWrap: ("<", ">"),
   termWrap: ("'", "'"),
-  enumerateAlts: true
+  enumerateAlts: true,
+  colored: true
 )
 
 func exprRepr*[C, L](

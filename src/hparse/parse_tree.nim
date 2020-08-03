@@ -47,16 +47,71 @@ Parse tree object
         subnodes*: seq[ParseTree[C, L, I]] ## Sequence of parsed subnodes
 
         subnadded: int
-        actions: Table[int, TreeAct]
+        actions: ActLookup
 
 
 
 
 #============================  Constructors  =============================#
 
+
 func newTree*[C, L, I](subtree: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
   ## Create new parse tree object
   ParseTree[C, L, I](kind: ptkList, subnodes: subtree)
+
+proc newTree*[C, L, I](
+  name: NTermSym, subnodes: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
+  ParseTree[C, L, I](kind: ptkNTerm, nterm: name, subnodes: subnodes)
+
+func add*[C, L, I](tree: var ParseTree[C, L, I],
+                   other: ParseTree[C, L, I]): void =
+  let idx = tree.subnadded
+  inc tree.subnadded
+  if idx notin tree.actions:
+    tree.subnodes.add other
+  else:
+    case tree.actions[idx]:
+      of taDrop:
+        discard
+      of taSpliceDiscard:
+        if other.kind == ptkToken:
+          raiseAssert(msgjoin("Cannot splice subnodes of token"))
+        else:
+          # debugecho tree.kind
+          tree.subnodes.add other.subnodes
+      of taSplicePromote:
+        # TODO splice-promote nterm *into* list
+        if other.kind !=  ptkNterm:
+          raiseAssert("Cannot splice-promote token nonterminal")
+        else:
+          tree.nterm = other.nterm
+
+        tree.subnodes.add other.subnodes
+      of taSubrule:
+        if ((idx - 1) notin tree.actions) or
+          (tree.actions[idx - 1] != taSubrule):
+          tree.subnodes.add newTree(@[other])
+        else:
+          tree.subnodes[^1].subnodes.add other
+      else:
+        raiseAssert("#[ IMPLEMENT ]#")
+
+func newTree*[C, L, I](subtree: seq[ParseTree[C, L, I]],
+                       actions: ActLookup): ParseTree[C, L, I] =
+  ## Create new parse tree object
+  result = ParseTree[C, L, I](kind: ptkList, actions: actions)
+  for sub in subtree:
+    result.add sub
+
+proc newTree*[C, L, I](name: NTermSym,
+                       subnodes: seq[ParseTree[C, L, I]],
+                       actions: ActLookup): ParseTree[C, L, I] =
+  result = ParseTree[C, L, I](kind: ptkNTerm,
+                              nterm: name, actions: actions)
+  # result = ParseTree[C, L, I](kind: ptkList, actions: actions)
+  for sub in subnodes:
+    result.add sub
+
 
 func initParseTree*[C, L, I](nterm: NtermSym,
                              actions: openarray[(int, TreeAct)]
@@ -88,9 +143,6 @@ func actions*[C, L, I](tree: ParseTree[C, L, I]): Table[int, TreeAct] =
 proc newTree*[C, L, I](tok: Token[C, L, I]): ParseTree[C, L, I] =
   ParseTree[C, L, I](kind: ptkToken, tok: tok)
 
-proc newTree*[C, L, I](
-  name: NTermSym, subnodes: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
-  ParseTree[C, L, I](kind: ptkNTerm, nterm: name, subnodes: subnodes)
 
 func tok*[C, L, I](tree: ParseTree[C, L, I]): Token[C, L, I] =
   assert tree.kind == pkTerm
@@ -328,39 +380,6 @@ func lispRepr*[C, L, I](
 
 
 #=====================  Tree actions implementation  =====================#
-
-func add*[C, L, I](tree: var ParseTree[C, L, I],
-                   other: ParseTree[C, L, I]): void =
-  let idx = tree.subnadded
-  inc tree.subnadded
-  if idx notin tree.actions:
-    tree.subnodes.add other
-  else:
-    case tree.actions[idx]:
-      of taDrop:
-        discard
-      of taSpliceDiscard:
-        if other.kind == ptkToken:
-          raiseAssert(msgjoin("Cannot splice subnodes of token"))
-        else:
-          # debugecho tree.kind
-          tree.subnodes.add other.subnodes
-      of taSplicePromote:
-        # TODO splice-promote nterm *into* list
-        if other.kind !=  ptkNterm:
-          raiseAssert("Cannot splice-promote token nonterminal")
-        else:
-          tree.nterm = other.nterm
-
-        tree.subnodes.add other.subnodes
-      of taSubrule:
-        if ((idx - 1) notin tree.actions) or
-          (tree.actions[idx - 1] != taSubrule):
-          tree.subnodes.add newTree(@[other])
-        else:
-          tree.subnodes[^1].subnodes.add other
-      else:
-        raiseAssert("#[ IMPLEMENT ]#")
 
 func runTreeActions*[C, L, I](tree: var ParseTree[C, L, I]): void =
   case tree.action:

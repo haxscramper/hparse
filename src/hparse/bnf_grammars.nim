@@ -37,12 +37,43 @@ type
       of true:
         tok*: ExpectedToken[C, L] ## Token kind
 
+#*************************************************************************#
+#***********************  Rule production symbols  ***********************#
+#*************************************************************************#
+type
+  RuleProd*[C, L] = object
+    symbols*: seq[FlatBnf[C, L]]
+
+func initRuleProd*[C, L](symbols: seq[FlatBnf[C, L]]): RuleProd[C, L] =
+  result.symbols = symbols
+
+func concat*[C, L](lhs, rhs: RuleProd[C, L]): RuleProd[C, L] =
+  result.symbols = lhs.symbols & rhs.symbols
+
+iterator items*[C, L](prod: RuleProd[C, L]): FlatBnf[C, L] =
+  for sym in prod.symbols:
+    yield sym
+
+iterator pairs*[C, L](prod: RuleProd[C, L]): (int, FlatBnf[C, L]) =
+  for idx, sym in prod.symbols:
+    yield (idx, sym)
+
+
+func last*[C, L](prod: RuleProd[C, L]): FlatBnf[C, L] = prod.symbols[^1]
+func len*[C, L](prod: RuleProd[C, L]): int = prod.symbols.len
+func reversed*[C, L](prod: RuleProd[C, L]): seq[FlatBnf[C, L]] =
+  prod.symbols.reversed()
+
+func `[]`*[C, L](prod: RuleProd[C, L], idx: int): FlatBnf[C, L] =
+  prod.symbols[idx]
+
 #=====================  Grammar & grammar elements  ======================#
 
 type
   BnfPatt*[C, L] = ref object # REVIEW is it necessary to use `ref`?
     ## Recursive of flat bnf pattern
     action*: TreeAct
+    actions*: ActLookup
     case flat*: bool
       of false:
         case kind*: BnfPattKind
@@ -55,7 +86,8 @@ type
           of bnfAlternative, bnfConcat:
             patts*: seq[BnfPatt[C, L]] ## Concatenation/list of alternatives
       of true:
-        elems*: seq[FlatBnf[C, L]] ## Flat bnf - concatenation of (non)terminals
+        elems*: RuleProd[C, L] ## Flat bnf - concatenation of
+                               ## (non)terminals
 
   BnfRule*[C, L] = object
     ## Single rule with one production
@@ -130,7 +162,7 @@ func rule*[C, L](nterm: BnfNterm, patt: BnfPatt[C, L]): BnfRule[C, L] =
   ## Construct new BNF rule using `nterm` as head and `patt` as production
   BnfRule[C, L](nterm: nterm, patt: patt)
 
-func patt*[C, L](elems: seq[FlatBnf[C, L]]): BnfPatt[C, L] =
+func patt*[C, L](elems: RuleProd[C, L]): BnfPatt[C, L] =
   BnfPatt[C, L](flat: true, elems: elems)
 
 #==============================  Accessors  ==============================#
@@ -146,7 +178,7 @@ iterator iterrules*[C, L](grammar: BnfGrammar[C, L], head: BnfNterm): RuleId =
     yield ruleId(head, altId)
 
 func ruleBody*[C, L](grammar: BnfGrammar[C, L],
-                     ruleId: RuleId): seq[FlatBnf[C, L]] =
+                     ruleId: RuleId): RuleProd[C, L] =
   return grammar.rules[ruleId.head][ruleId.alt].elems
 
 #===================  Conversion from regular grammar  ===================#
@@ -204,7 +236,9 @@ func toBNF*[C, L](
             kind: bnfAlternative,
             patts: @[
               BnfPatt[C, L](flat: false, kind: bnfEmpty),
-              BnfPatt[C, L](flat: false, kind: bnfConcat, patts: @[
+              BnfPatt[C, L](flat: false, kind: bnfConcat,
+                            actions: {1 : taSpliceDiscard}.toTable(),
+                            patts: @[
                 body,
                 BnfPatt[C, L](flat: false, kind: bnfNterm, nterm: newsym)
         ])]))
@@ -243,28 +277,31 @@ func toBNF*[C, L](
       ] & subnewrules
 
 
-func flatten[C, L](patt: BnfPatt[C, L]): seq[seq[FlatBnf[C, L]]] =
+func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
  if patt.flat:
    return @[ patt.elems ]
  else:
    case patt.kind:
      of bnfEmpty:
-       return @[ emptySeq[FlatBnf[C, L]]() ]
+       return @[ initRuleProd[C, L](@[]) ]
      of bnfTerm:
-       return @[ @[ FlatBnf[C, L](isTerm: true, tok: patt.tok) ] ]
+       return @[ initRuleProd(@[
+         FlatBnf[C, L](isTerm: true, tok: patt.tok) ]) ]
      of bnfNterm:
-       return @[ @[ FlatBnf[C, L](isTerm: false, nterm: patt.nterm) ] ]
+       return @[ initRuleProd(@[ FlatBnf[C, L](isTerm: false, nterm: patt.nterm) ]) ]
      of bnfConcat:
        for idx, sub in patt.patts:
-         var newpatts: seq[seq[FlatBnf[C, L]]]
+         var newpatts: seq[RuleProd[C, L]]
          for patt in sub.flatten():
            if result.len == 0:
              newpatts.add patt
            else:
-             for val in result:
-               newpatts.add val & patt
+             for val in result: # Concatenate head with alternative
+               newpatts.add concat(val, patt)
 
          result = newpatts
+       for it in result:
+         debugecho it.exprRepr()
      of bnfAlternative:
        for alt in patt.patts:
          result &= alt.flatten()
@@ -329,9 +366,13 @@ func `[]`*[C, L](grammar: BnfGrammar[C, L], rule: RuleId): BnfPatt[C, L] =
   grammar.rules[rule.head][rule.alt]
 
 func getProductions*[C, L](
-  grammar: BnfGrammar[C, L], id: RuleId): seq[FlatBnf[C, L]] =
+  grammar: BnfGrammar[C, L], id: RuleId): RuleProd[C, L] =
   ## Get list of productions from flat bnf pattern at `id`
   grammar.rules[id.head][id.alt].elems
+
+func getActions*[C, L](grammar: BnfGrammar[C, L],
+                       id: RuleId): ActLookup =
+  grammar.rules[id.head][id.alt].actions
 
 func first*[C, L](patt: BnfPatt[C, L]): FlatBnf[C, L] =
   assert patt.flat
@@ -356,10 +397,15 @@ func exprRepr*[C, L](
   fbnf: FlatBnf[C, L],
   conf: GrammarPrintConf = defaultGrammarPrintConf): string =
   if fbnf.isTerm:
+    mixin toGreen
     let lex = fbnf.tok.hasLex.tern(&".{fbnf.tok.lex}", "")
-    (&"{fbnf.tok.cat}{lex}").wrap(conf.termWrap)
+    toGreen(&"{fbnf.tok.cat}{lex}", conf.colored).wrap(conf.termWrap)
   else:
-    (fbnf.nterm.exprRepr(conf.normalizeNterms)).wrap(conf.ntermWrap)
+    mixin toYellow
+    toYellow(
+      fbnf.nterm.exprRepr(conf.normalizeNterms),
+      conf.colored
+    ).wrap(conf.ntermWrap)
     # of fbkNterm:
     # of fbkTerm:
     # of fbkEmpty:
@@ -430,6 +476,12 @@ func exprRepr*(id: RuleId, normalize: bool = false): string =
     fmt("{id.head.exprRepr(true)}{id.alt}")
   else:
     fmt("{id.head.exprRepr(false)}.{id.alt}")
+
+func exprRepr*[C, L](prod: RuleProd[C, L],
+                     conf: GrammarPrintConf = defaultGrammarPrintConf
+                    ): string =
+  prod.mapIt(it.exprRepr(conf)).join(" ")
+
 
 func `$`*(id: RuleId): string = id.exprRepr()
 func `$`*(nterm: BnfNterm): string = nterm.exprRepr()
@@ -517,5 +569,3 @@ func append*(itemset: var GItemSet, item: GItem): void =
 
 func add*(itemset: var GItemSet, item: GItem): void =
   itemset.gitems.add item
-
-

@@ -1,3 +1,5 @@
+import tables
+
 type
   NTermSym* = string
 
@@ -23,3 +25,5 @@ type
     pkOptional ## Optional (non)terminal
     pkZeroOrMore ## Zero or more occurencies of (non)terminal
     pkOneOrMore ## One or more occurence of (non)terminal
+
+  ActLookup* = Table[int, TreeAct]

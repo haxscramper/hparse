@@ -47,7 +47,7 @@ func nextSymbol[C, L](gr: BnfGrammar[C, L], item: GItem): Option[FlatBnf[C, L]] 
 #**********************  Nullable set construction  **********************#
 #*************************************************************************#
 
-func isNullable[C, L](ns: NullSet, rule: seq[FlatBnf[C, L]]): bool =
+func isNullable[C, L](ns: NullSet, rule: RuleProd[C, L]): bool =
   for item in rule:
     if item.isTerm:
       return false

@@ -5,7 +5,8 @@ import hdrawing, hdrawing/term_buf
 import hmisc/types/[seq2d]
 import sugar, sequtils, hashes, tables, strutils, strformat, deques, sets
 
-import bnf_grammars, grammars, parse_helpers, parse_tree, token
+import bnf_grammars, grammars, parse_helpers, parse_tree, token,
+       parse_primitives
 
 type
   AltId* = int
@@ -296,6 +297,7 @@ type
   TermProgress[C, L, I] = object
     nterm: BnfNterm
     expected: int
+    acts: ActLookup
     elems: seq[ParseTree[C, L, I]]
 
 proc parse*[C, L, I](
@@ -303,10 +305,12 @@ proc parse*[C, L, I](
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
   var stack: seq[FlatBnf[C, L]]
   stack.add FlatBnf[C, L](isTerm: false, nterm: parser.start)
-  var curr: Token[C, L, I] = toks.next()
-  var ntermStack: seq[TermProgress[C, L, I]] = @[]
-  var done = false
-  var parseDone: bool = false
+  var
+    curr: Token[C, L, I] = toks.next()
+    ntermStack: seq[TermProgress[C, L, I]] = @[]
+    done = false
+    parseDone: bool = false
+
   while not done:
     let top: FlatBnf[C, L] = stack.pop()
 
@@ -322,7 +326,9 @@ proc parse*[C, L, I](
       let rule: RuleId = parser.parseTable.getRule(top.nterm, curr)
       let stackadd = parser.grammar.getProductions(rule)
       ntermStack.add TermProgress[C, L, I](
-        nterm: rule.head, expected: stackadd.len)
+        nterm: rule.head, expected: stackadd.len,
+        acts: parser.grammar.getActions(rule))
+
       stack &= stackadd.reversed()
 
     while (ntermStack.len > 0) and
@@ -340,7 +346,7 @@ proc parse*[C, L, I](
         )
       else:
         result = newTree(last.nterm.name, last.elems)
-        parseDone = true
+  #       parseDone = true
 
-  if parseDone:
-    return result
+  # if parseDone:
+  #   return result
