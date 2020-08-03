@@ -1,6 +1,6 @@
 import unittest, sequtils, options, random, strutils
 import typetraits
-import hmisc/hpprint
+import hpprint
 import hmisc/algo/[halgorithm, htree_mapping]
 import hasts/graphviz_ast
 import hparse/[

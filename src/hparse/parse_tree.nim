@@ -1,10 +1,11 @@
 import parse_primitives, token
-import sequtils, strformat, strutils, colors
+import sequtils, strformat, strutils, colors, tables
 
 import hasts/[graphviz_ast, html_ast]
 import hmisc/types/[ hprimitives, colorstring ]
 import hmisc/algo/htree_mapping
 import hmisc/helpers
+export colorstring
 
 #*************************************************************************#
 #**************************  Type definitions  ***************************#
@@ -39,22 +40,46 @@ Parse tree object
     case kind*: ParseTreeKind
       of ptkToken:
         tok*: Token[C, L, I] ## Value of parsed token
-      of ptkNTerm:
+      of ptkNTerm, ptkList:
         # IDEA REVIEW maybe use `RuleId` to retain information about
         # original rules that has been used?
         nterm*: NTermSym ## Name of parsed nonterminal
         subnodes*: seq[ParseTree[C, L, I]] ## Sequence of parsed subnodes
-      of ptkList:
-        elements*: seq[ParseTree[C, L, I]]
+
+        subnadded: int
+        actions: Table[int, TreeAct]
 
 
 
 
 #============================  Constructors  =============================#
 
-proc newTree*[C, L, I](subtree: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
+func newTree*[C, L, I](subtree: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
   ## Create new parse tree object
-  ParseTree[C, L, I](kind: ptkList, elements: subtree)
+  ParseTree[C, L, I](kind: ptkList, subnodes: subtree)
+
+func initParseTree*[C, L, I](nterm: NtermSym,
+                             actions: openarray[(int, TreeAct)]
+                            ): ParseTree[C, L, I] =
+  ParseTree[C, L, I](
+    kind: ptkNterm,
+    nterm: nterm,
+    subnadded: 0,
+    actions: actions.toTable()
+  )
+
+# func initParseTree*[C, L, I](nterm: NtermSym,
+#                              subnodes: seq[ParseTree[C, L, I]]
+#                             ): ParseTree[C, L, I] =
+#   ParseTree[C, L, I](kind: ptkNterm, subnodes: subnodes, nterm: nterm)
+
+# func initParseTree*[C, L, I](tok: Token[C, L, I]): ParseTree[C, L, I]
+
+func subnadded*[C, L, I](tree: ParseTree[C, L, I]): int =
+  tree.subnadded
+
+func actions*[C, L, I](tree: ParseTree[C, L, I]): Table[int, TreeAct] =
+  tree.actions
 
 # proc newTree*[Tok](subtree: seq[ParseTree[Tok]]): ParseTree[Tok] =
 #   ## Create new parse tree object
@@ -73,15 +98,13 @@ func tok*[C, L, I](tree: ParseTree[C, L, I]): Token[C, L, I] =
 
 func getSubnodes*[C, L, I](tree: ParseTree[C, L, I]): seq[ParseTree[C, L, I]] =
   case tree.kind:
-    of ptkNterm: tree.subnodes
-    of ptkList: tree.elements
+    of ptkNterm, ptkList: tree.subnodes
     of ptkToken: @[]
 
 func len*[C, L, I](tree: ParseTree[C, L, I]): int =
   case tree.kind:
     of ptkToken: 0
-    of ptkNterm: tree.subnodes.len
-    of ptkList: tree.elements.len
+    of ptkNterm, ptkList: tree.subnodes.len
 
 #========================  Accessors/predicates  =========================#
 
@@ -251,17 +274,19 @@ func treeReprImpl*[C, L, I](
     ""
   )
 
-  mixin toGreen
   result = case node.kind:
     of ptkToken:
       when (C is NoCategory) and (L is string):
-        @[ fmt("{prefStr}'{toGreen(node.tok.lex, true)}'") ]
+        mixin toGreen
+        @[ fmt("{prefStr}'{toGreen($node.tok.lex, true)}'") ]
       else:
-        @[ fmt(
-          "{prefStr}[{node.tok.cat.tokKindStr(kindPref)}, '{node.tok.lex}']"
-        ) ]
+        mixin toGreen
+        @[
+          &"{prefStr}[{node.tok.cat}, " &
+          &"'{toGreen($node.tok.lex, true)}']"
+        ]
     of ptkNTerm:
-      @[ fmt("{prefStr}{node.nterm}") ]
+      @[ fmt("{prefStr}{toYellow(node.nterm, true)}") ]
     of ptkList:
       @[ fmt("{prefStr}[ {node.nodeKindStr()} ]") ]
 
@@ -304,6 +329,25 @@ func lispRepr*[C, L, I](
 
 #=====================  Tree actions implementation  =====================#
 
+func add*[C, L, I](tree: var ParseTree[C, L, I],
+                   other: ParseTree[C, L, I]): void =
+  let idx = tree.subnadded
+  inc tree.subnadded
+  if idx notin tree.actions:
+    tree.subnodes.add other
+  else:
+    case tree.actions[idx]:
+      of taDrop:
+        discard
+      of taSpliceDiscard:
+        if other.kind == ptkToken:
+          raiseAssert(msgjoin("Cannot splice subnodes of token"))
+        else:
+          # debugecho tree.kind
+          tree.subnodes.add other.subnodes
+      else:
+        discard
+
 func runTreeActions*[C, L, I](tree: var ParseTree[C, L, I]): void =
   case tree.action:
     of taDrop: # This tree should be dropped by it's parent
@@ -315,8 +359,7 @@ func runTreeActions*[C, L, I](tree: var ParseTree[C, L, I]): void =
   var hadPromotions: bool = false
   let subnodes =
     case tree.kind:
-      of ptkNterm: tree.subnodes
-      of ptkList: tree.elements
+      of ptkNterm, ptkList: tree.subnodes
       else: @[]
 
   for idx in 0 ..< subnodes.len:
@@ -373,10 +416,8 @@ func runTreeActions*[C, L, I](tree: var ParseTree[C, L, I]): void =
 
 
   case tree.kind:
-    of ptkNterm:
+    of ptkNterm, ptkList:
       tree.subnodes = newsubn
-    of ptkList:
-      tree.elements = newsubn
     else:
       discard
 
