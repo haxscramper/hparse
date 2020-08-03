@@ -345,8 +345,22 @@ func add*[C, L, I](tree: var ParseTree[C, L, I],
         else:
           # debugecho tree.kind
           tree.subnodes.add other.subnodes
+      of taSplicePromote:
+        # TODO splice-promote nterm *into* list
+        if other.kind !=  ptkNterm:
+          raiseAssert("Cannot splice-promote token nonterminal")
+        else:
+          tree.nterm = other.nterm
+
+        tree.subnodes.add other.subnodes
+      of taSubrule:
+        if ((idx - 1) notin tree.actions) or
+          (tree.actions[idx - 1] != taSubrule):
+          tree.subnodes.add newTree(@[other])
+        else:
+          tree.subnodes[^1].subnodes.add other
       else:
-        discard
+        raiseAssert("#[ IMPLEMENT ]#")
 
 func runTreeActions*[C, L, I](tree: var ParseTree[C, L, I]): void =
   case tree.action:
