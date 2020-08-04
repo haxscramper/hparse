@@ -134,19 +134,19 @@ func exprRepr*[C, L](
     if patt.action != taDefault: &"{patt.action.exprRepr(conf)}" else: ""
   case patt.kind:
     of pkTerm:
-      act & (patt.tok.exprRepr()).wrap(conf.termWrap)
+      act & (patt.tok.exprRepr(conf))
     of pkNTerm:
       if patt.action != taDefault:
-        (&"{patt.action.exprRepr(conf)}{patt.nterm}"
+        (&"{patt.action.exprRepr(conf)}{toYellow(patt.nterm, conf.colored)}"
         ).wrap(conf.ntermWrap)
       else:
-        ($patt.nterm).wrap(conf.ntermWrap)
+        toYellow($patt.nterm, conf.colored).wrap(conf.ntermWrap)
     of pkAlternative, pkConcat:
       act & patt.patts.mapIt(exprRepr(it, conf)).join(
         (patt.kind == pkConcat).tern(conf.concatSep, conf.alternSep)
       ).wrap("{}")
     of pkOptional, pkZeroOrMore, pkOneOrMore:
-      let suff =
+      let pref =
         case patt.kind:
           of pkOptional: "?"
           of pkZeroOrMore: "*"
@@ -154,7 +154,7 @@ func exprRepr*[C, L](
           else:
             ""
 
-      fmt("({patt.opt.exprRepr(conf)}){suff}")
+      fmt("{act}{toMagenta(pref, conf.colored)}({patt.opt.exprRepr(conf)})")
 
 
 func exprRepr*[C, L](

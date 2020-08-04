@@ -108,27 +108,39 @@ suite "Compare parsers table vs codegen LL(1)":
         initGrammarCalls(NoCategory, string)
         initGrammarImpl(grammarBody)
 
-    let tableParser = newLL1TableParser[NoCategory, string](
-      grammarVal.toGrammar())
-    let tableTree = makeTokens(tokens).makeStream().withResIt:
-      tableParser.parse(it)
+    echo grammarVal.toGrammar().exprRepr()
 
-    let recParser = newLL1RecursiveParser[NoCategory, string, void](grammarConst)
-    let recTree = makeTokens(tokens).makeStream().withResIt:
-      recParser.parse(it)
+    block:
+      let recParser = newLL1RecursiveParser[NoCategory, string, void](
+        grammarConst)
+      let recTree = makeTokens(tokens).makeStream().withResIt:
+        recParser.parse(it)
 
-    echo "Recursive tree"
-    echo recTree.treeRepr()
+      echo "Recursive tree"
+      echo recTree.treeRepr()
 
-    echo "Table tree"
-    echo tableTree.treeRepr()
+    block:
+      let tableParser = newLL1TableParser[NoCategory, string](
+        grammarVal.toGrammar())
+      let tableTree = makeTokens(tokens).makeStream().withResIt:
+        tableParser.parse(it)
 
-  test "Primitive grammar":
-    testparse(@["e", "E"]):
-      A ::= "e" & "E"
+      echo "Table tree"
+      echo tableTree.treeRepr()
 
-  test "List DSL":
-    testparse(@["[", "i", ",", "i", ",", "i", ",", "i", "]"]):
-      List ::= !"[" & Elements & !"]"
-      Elements ::= Element & @*(@(!"," & Element))
-      Element ::= "i" | List
+  # test "Primitive grammar":
+  #   testparse(@["e", "E"]):
+  #     A ::= "e" & "E"
+
+  test "Double splice one-or-more":
+    testparse(@[":", ";", ":", ";", ":", ";"]):
+      A ::= *(":" & ";")
+
+    testparse(@[":", ";", ":", ";", ":", ";"]):
+      A ::= *(@(":" & ";"))
+
+  # test "List DSL":
+  #   testparse(@["[", "i", ",", "i", ",", "i", ",", "i", "]"]):
+  #     List ::= !"[" & Elements & !"]"
+  #     Elements ::= Element & @*(@(!"," & Element))
+  #     Element ::= "i" | List

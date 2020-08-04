@@ -124,8 +124,7 @@ proc computePatt*[C, L](
       result = CompPatt[C, L](
         kind: kind,
         opt: @[computePatt(patt.opt, sets)],
-        first: makeTokSet[C, L]()
-      )
+        first: makeTokSet[C, L]())
       result.first.incl computeFirst(patt.opt, sets)
     of pkNterm:
       # FIRST sets for nonterminals are stored in `sets`
@@ -153,6 +152,8 @@ proc necessaryTerms[C, L](rhs: Patt[C, L]): seq[NTermSym] =
       return @[rhs.nterm]
     of pkConcat:
       return necessaryTerms(rhs.patts[0])
+    of pkZeroOrMore, pkOptional, pkOneOrMore:
+      return necessaryTerms(rhs.item[0])
     else:
       return @[]
 
@@ -172,6 +173,14 @@ proc computeGrammar*[C, L](g: Grammar[C, L]
     deps = ((r) => (r.patts.necessaryTerms().mapIt(it.hash))),
     idgen = ((r) => hash(r.nterm))
   )
+
+  # echo "---"
+  # for rule in g.rules:
+  #   echo rule.exprRepr()
+
+  # for rule in sortedRules:
+  #   echo rule.exprRepr()
+
 
   for rule in sortedRules:
     let compPatt = computePatt(rule.patts, sets)
@@ -344,7 +353,7 @@ proc makeNtoMTimesBlock[C, L](
     # echo "entering loop"
     # echo `toksIdent`.peek().exprRepr(), " ", `toksIdent`.peek() in laSet
     # echo laSet.exprRepr()
-    while `countConstraints` and `toksIdent`.peek() in laSet:
+    while `countConstraints` and (not `toksIdent`.finished()) and (`toksIdent`.peek() in laSet):
       # echo "found item"
       `bodyParse`
       inc `cnt`

@@ -242,6 +242,9 @@ func toBNF*[C, L](
       else:
         result.toprule = BnfPatt[C, L](
           flat: false, kind: bnfConcat, patts: newsubp)
+
+      for idx, sym in patt.patts:
+        result.toprule.actions[idx] = sym.action
     of pkZeroOrMore:
       # debugecho patt.exprRepr()
       let newsym = makeBnfNterm(parent, idx)
@@ -353,7 +356,7 @@ func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
 func toBNF*[C, L](
   rule: Rule[C, L],
   noAltFlatten: bool = false,
-  renumerate: bool = true): seq[BnfRule[C, L]] =
+  renumerate: bool = false): seq[BnfRule[C, L]] =
   let (top, newrules) = rule.patts.toBnf(rule.nterm)
   if noAltFlatten:
     block:
@@ -452,6 +455,11 @@ func exprRepr*[C, L](
         conf.colored
       )
     ).wrap(conf.ntermWrap)
+
+func exprRepr*[C, L](
+  fbnf: seq[FlatBnf[C, L]],
+  conf: GrammarPrintConf = defaultGrammarPrintConf): string =
+  fbnf.mapIt(it.exprRepr(conf)).join(conf.concatSep)
 
 func exprRepr*[C, L](
   bnf: BnfPatt[C, L],

@@ -66,9 +66,6 @@ func isNullable[C, L](
     false
   else:
     fbnf.nterm in nulls
-    # of fbkEmpty: true
-    # of fbkTerm: false
-    # of fbkNterm:
 
 func getSets*[C, L](grammar: BnfGrammar[C, L]): tuple[
   first: FirstTable[C, L],
@@ -89,15 +86,23 @@ func getSets*[C, L](grammar: BnfGrammar[C, L]): tuple[
   block: # Add end token to `FOLLOW`
     var endNterms = initDeque[BnfNterm]()
     endNterms.addLast grammar.start
-    while endNterms.len > 0:
+    var cnt = 0
+    while cnt < 10 and endNterms.len > 0:
+      inc cnt
       let nterm = endNterms.popFirst()
       result.follow[nterm] = makeTokSet[C, L](eofTok)
       for altId, alt in grammar.rules[nterm]:
-        if not alt.elems.last.isTerm:
-          endNterms.addLast alt.elems.last.nterm
+        # echov alt.exprRepr()
+        if (alt.elems.len > 0) and (not alt.elems.last.isTerm):
+          if alt.elems.last.nterm != nterm: # HACK prevent infinite loop on right recursive rules
+            endNterms.addLast alt.elems.last.nterm
+
+      # for shit in items(endnterms):
+      #   echov shit
 
   while true:
     var updated: bool = false
+
     for rule, body in grammar.iterrules():
       # showLog fmt "Processing {rule.exprRepr()} {body.exprRepr()}"
       # runIndentedLog:
@@ -164,7 +169,6 @@ func getSets*[C, L](grammar: BnfGrammar[C, L]): tuple[
             else:
               tailFollow = result.first[elem.nterm].mapPairs(rhs).union()
 
-
     if not updated:
       break
 
@@ -213,31 +217,34 @@ const pconf* = GrammarPrintConf(
   normalizeNterms: true
 )
 
-proc makeLL1TableParser*[C, L](grammar: BnfGrammar[C, L]): LL1Table[C, L] =
+proc makeLL1TableParser*[C, L](grammar: BnfGrammar[C, L]): tuple[
+  table: LL1Table[C, L], nullable: Table[BnfNterm, seq[AltId]]] =
   # let firstTable = getFirst(grammar)
   # let followTable = getFollow(grammar, firstTable)
   # mixin items
   let (firstTable, followTable, nullable) = getSets(grammar)
+  result.nullable = nullable
+  # echo "233"
   for ruleId, alt in grammar.iterrules():
     if ruleId.head notin firstTable:
       #[ IMPLEMENT REVIEW what has to be done ]#
       discard
     else:
       let first = firstTable[ruleId.head][ruleId.alt]
-      if ruleId.head notin result:
-        result[ruleId.head] = initRuleLookup(first, ruleId, canConflict = false)
+      if ruleId.head notin result.table:
+        result.table[ruleId.head] = initRuleLookup(first, ruleId, canConflict = false)
       else:
-        result[ruleId.head].addRule(first, ruleId, canConflict = false)
+        result.table[ruleId.head].addRule(first, ruleId, canConflict = false)
 
   for nterm, nullAlts in nullable:
     let first = followTable[nterm]
     for alt in nullAlts.deduplicate():
       let ruleId = ruleId(nterm, alt)
 
-      if nterm notin result:
-        result[nterm] = initRuleLookup(first, ruleId)
+      if nterm notin result.table:
+        result.table[nterm] = initRuleLookup(first, ruleId)
       else:
-        result[nterm].addRule(first, ruleId, canConflict = false)
+        result.table[nterm].addRule(first, ruleId, canConflict = false)
 
 
 
@@ -272,6 +279,7 @@ proc makeLL1TableParser*[C, L](grammar: BnfGrammar[C, L]): LL1Table[C, L] =
 type
   LL1TableParser*[C, L] = object
     start: BnfNterm
+    nullable: Table[BnfNterm, seq[AltId]]
     grammar: BnfGrammar[C, L]
     parseTable: LL1Table[C, L]
     retainGenerated: bool
@@ -284,11 +292,9 @@ proc newLL1TableParser*[C, L](
   grammar: Grammar[C, L],
   retainGenerated: bool = false): LL1TableParser[C, L] =
   let bnfg = grammar.toBNF()
-  plog:
-    debugecho "\e[41mInput grammar\e[49m:\n", grammar.exprRepr()
-    debugecho "\e[41mBNF grammar\e[49m:\n", bnfg.exprRepr(true, conf = pconf),
-      "\n"
-  result.parseTable = makeLL1TableParser(bnfg)
+  let tmp = makeLL1TableParser(bnfg)
+  result.parseTable = tmp.table
+  result.nullable = tmp.nullable
   result.start = bnfg.start
   result.grammar = bnfg
   result.retainGenerated = retainGenerated
@@ -296,57 +302,63 @@ proc newLL1TableParser*[C, L](
 type
   TermProgress[C, L, I] = object
     nterm: BnfNterm
-    expected: int
+    expected: seq[FlatBnf[C, L]]
     acts: ActLookup
     elems: seq[ParseTree[C, L, I]]
+
+func canFold[C, L, I](lst: TermProgress[C, L, I],
+                      forcefold: bool,
+                      nullable: Table[BnfNterm, seq[AltId]]): bool =
+  if forcefold:
+    lst.expected[lst.elems.len .. ^1].allOfIt(it.isNullable(nullable))
+  else:
+    lst.elems.len == lst.expected.len
 
 proc parse*[C, L, I](
   parser: LL1TableParser[C, L],
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
-  var stack: seq[FlatBnf[C, L]]
-  stack.add FlatBnf[C, L](isTerm: false, nterm: parser.start)
   var
-    curr: Token[C, L, I] = toks.next()
-    ntermStack: seq[TermProgress[C, L, I]] = @[]
-    done = false
-    parseDone: bool = false
+    stack: seq[FlatBnf[C, L]] # Symbols stack
+    curr: Token[C, L, I] = toks.next() # Current input token
+    ppr: seq[TermProgress[C, L, I]] = @[] # Parse progres for all rules
 
-  while not done:
-    let top: FlatBnf[C, L] = stack.pop()
+  stack.add FlatBnf[C, L](isTerm: false, nterm: parser.start)
 
-    if top.isTerm:
-      assertToken(top.tok, curr)
-      ntermStack.last().elems.add newTree(curr)
+  template foldstack(): untyped =
+    let forcefold = toks.finished()
+    if forcefold and not canFold(ppr.last(), forcefold, parser.nullable):
+      echo "Unexpected EOF"
 
-      if toks.finished():
-        done = true
-      else:
-        curr = toks.next()
-    else:
-      let rule: RuleId = parser.parseTable.getRule(top.nterm, curr)
-      let stackadd = parser.grammar.getProductions(rule)
-      ntermStack.add TermProgress[C, L, I](
-        nterm: rule.head, expected: stackadd.len,
-        acts: stackadd.getActions())
-
-      stack &= stackadd.reversed()
-
-    while (ntermStack.len > 0) and
-          (ntermStack.last().elems.len == ntermStack.last().expected):
-      let last = ntermStack.pop()
-      if ntermStack.len > 0:
-        ntermStack.last().elems.add(
+    while (ppr.len > 0) and (ppr.last().canFold(forcefold, parser.nullable)):
+      let last = ppr.pop()
+      if ppr.len > 0:
+        ppr.last().elems.add(
           if last.nterm.generated:
             if parser.retainGenerated:
               newTree(last.nterm.exprRepr(), last.elems, last.acts)
             else:
               newTree(last.elems, last.acts)
           else:
-            newTree(last.nterm.name, last.elems, last.acts)
-        )
+            newTree(last.nterm.name, last.elems, last.acts))
       else:
-        result = newTree(last.nterm.name, last.elems)
-  #       parseDone = true
+        return newTree(last.nterm.name, last.elems)
 
-  # if parseDone:
-  #   return result
+
+  while true:
+    let top: FlatBnf[C, L] = stack.pop()
+    if top.isTerm:
+      assertToken(top.tok, curr)
+      ppr.last().elems.add newTree(curr)
+      if toks.finished():
+        foldstack()
+      else:
+        curr = toks.next()
+    else:
+      let rule: RuleId = parser.parseTable.getRule(top.nterm, curr)
+      let stackadd = parser.grammar.getProductions(rule)
+      ppr.add TermProgress[C, L, I](
+        nterm: rule.head, expected: stackadd.symbols, acts: stackadd.getActions())
+
+      stack &= stackadd.reversed()
+
+    foldstack()

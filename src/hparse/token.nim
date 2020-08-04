@@ -1,5 +1,6 @@
 import sets, sequtils, hashes, tables, strutils, strformat, macros
 import hmisc/helpers
+import hmisc/algo/halgorithm
 import initcalls
 import parse_primitives
 

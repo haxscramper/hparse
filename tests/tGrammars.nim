@@ -8,31 +8,33 @@ include example_grammar
 #================================  tests  ================================#
 
 import unittest
-const nt = nterm[TokenKind, string]
+let nt = nterm[TokenKind, string]
 proc tok(k: TokenKind): auto = tok[TokenKind, string](k)
 
 suite "EBNF -> BNF convesion":
   proc conv[Tk, string](patt: Patt[Tk, string]): void =
     echo "\n\e[41mVVVVVVVVVVVVVVVVVVVV\e[0m"
     let ebnf = rule("X", patt)
-    # echo patt
 
-    echo "\e[32minput:\e[0m"
+    echo "\e[32mEBNF:\e[0m"
     echo ebnf.exprRepr()
     block:
-      echo "\e[32mregular:\e[0m"
+      echo "\e[32mBNF not flattened:\e[0m"
       let newrules = ebnf.toBNF()
       for rule in newrules:
         echo rule.exprRepr()
 
     block:
-      echo "\e[32mflattened:\e[0m"
+      echo "\e[32mBNF flattened:\e[0m"
       let newrules = ebnf.toBNF(true)
       for rule in newrules:
         echo rule.exprRepr()
 
   test "wee":
-    conv(andP(andP(nt "E", nt "##"), tok(tkPunct)).addAction(taDrop))
+    conv(andP(
+      zeroP(andP(nt "E", nt "##")).addAction(taSpliceDiscard),
+      tok(tkPunct).addAction(taDrop)
+    ))
 
     # conv(andP(
     #   nt("element"),
