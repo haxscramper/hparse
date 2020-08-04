@@ -27,3 +27,27 @@ type
     pkOneOrMore ## One or more occurence of (non)terminal
 
   ActLookup* = Table[int, TreeAct]
+
+
+type
+  GrammarPrintConf* = object
+    emptyProd*: string
+    prodArrow*: string
+    concatSep*: string
+    alternSep*: string
+    ntermWrap*: (string, string)
+    termWrap*: (string, string)
+    normalizeNterms*: bool
+    enumerateAlts*: bool
+    colored*: bool
+
+const defaultGrammarPrintConf*: GrammarPrintConf = GrammarPrintConf(
+  emptyProd: "ε",
+  prodArrow: "::=",
+  concatSep: " & ",
+  alternSep: " | ",
+  ntermWrap: ("<", ">"),
+  termWrap: ("'", "'"),
+  enumerateAlts: true,
+  colored: true
+)

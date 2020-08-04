@@ -1,6 +1,7 @@
 import sets, sequtils, hashes, tables, strutils, strformat, macros
 import hmisc/helpers
 import initcalls
+import parse_primitives
 
 ## Parse tree contains actual token /values/ - concrete lexemes and
 ## additional information (whatever you deem necessary adding).
@@ -521,13 +522,21 @@ type
 
 func exprRepr*[C, L, I](tok: Token[C, L, I]): string =
   # TODO remove prefix from category enum
-  fmt("({tok.cat} '{tok.lex}')")
-
-func exprRepr*[C, L](exp: ExpectedToken[C, L]): string =
-  if exp.hasLex:
-    fmt("({exp.cat} '{exp.lex}')")
+  when C is NoCategory:
+    fmt("'{tok.lex}'")
   else:
-    fmt("({exp.cat} _)")
+    fmt("({tok.cat} '{tok.lex}')")
+
+func exprRepr*[C, L](exp: ExpectedToken[C, L],
+                     conf: GrammarPrintConf = defaultGrammarPrintConf
+                    ): string =
+  when C is NoCategory:
+    fmt("{exp.lex}").wrap(conf.termWrap)
+  else:
+    if exp.hasLex:
+      fmt("({exp.cat} '{exp.lex}')")
+    else:
+      fmt("({exp.cat} _)")
 
 func getLinePos*[C, L, I](tok: Token[C, L, I]): LinePosInfo =
   getLinePos(tok.info)

@@ -3,7 +3,7 @@ import strutils
 export tables
 import hmisc/helpers
 import hasts/graphviz_ast
-import hmisc/types/hvariant
+import hmisc/types/[hvariant, colorstring]
 import hmisc/algo/[halgorithm, htree_mapping, hseq_mapping]
 import lexer, token
 
@@ -115,41 +115,36 @@ func tokKindStr*[C](tok: C, prefStr: string): string =
 
 #=======================  grammar representation  ========================#
 
-type
-  GrammarPrintConf* = object
-    emptyProd*: string
-    prodArrow*: string
-    concatSep*: string
-    alternSep*: string
-    ntermWrap*: (string, string)
-    termWrap*: (string, string)
-    normalizeNterms*: bool
-    enumerateAlts*: bool
-    colored*: bool
+func exprRepr*(ta: TreeAct,
+               conf: GrammarPrintConf = defaultGrammarPrintConf): string =
+  result = case ta:
+    of taDefault: ""
+    of taDrop: "!"
+    of taSubrule: "v"
+    of taSpliceDiscard: "@"
+    of taSplicePromote: "^@"
+    of taPromote: "^"
 
-const defaultGrammarPrintConf*: GrammarPrintConf = GrammarPrintConf(
-  emptyProd: "ε",
-  prodArrow: "::=",
-  concatSep: " & ",
-  alternSep: " | ",
-  ntermWrap: ("<", ">"),
-  termWrap: ("'", "'"),
-  enumerateAlts: true,
-  colored: true
-)
+  return result.toRed(conf.colored)
 
 func exprRepr*[C, L](
   patt: Patt[C, L],
   conf: GrammarPrintConf = defaultGrammarPrintConf): string =
+  let act =
+    if patt.action != taDefault: &"{patt.action.exprRepr(conf)}" else: ""
   case patt.kind:
     of pkTerm:
-      ($patt.tok).wrap(conf.termWrap)
+      act & (patt.tok.exprRepr()).wrap(conf.termWrap)
     of pkNTerm:
-      ($patt.nterm).wrap(conf.ntermWrap)
+      if patt.action != taDefault:
+        (&"{patt.action.exprRepr(conf)}{patt.nterm}"
+        ).wrap(conf.ntermWrap)
+      else:
+        ($patt.nterm).wrap(conf.ntermWrap)
     of pkAlternative, pkConcat:
-      patt.patts.mapIt(exprRepr(it, conf)).join(
+      act & patt.patts.mapIt(exprRepr(it, conf)).join(
         (patt.kind == pkConcat).tern(conf.concatSep, conf.alternSep)
-      ).wrap("{  }")
+      ).wrap("{}")
     of pkOptional, pkZeroOrMore, pkOneOrMore:
       let suff =
         case patt.kind:
@@ -159,7 +154,7 @@ func exprRepr*[C, L](
           else:
             ""
 
-      fmt("( {patt.opt.exprRepr(conf)} ){suff}")
+      fmt("({patt.opt.exprRepr(conf)}){suff}")
 
 
 func exprRepr*[C, L](
