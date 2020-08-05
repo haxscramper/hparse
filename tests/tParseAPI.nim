@@ -108,6 +108,7 @@ suite "Compare parsers table vs codegen LL(1)":
         initGrammarCalls(NoCategory, string)
         initGrammarImpl(grammarBody)
 
+    echo "EBNF grammar"
     echo grammarVal.toGrammar().exprRepr()
 
     block:
@@ -133,11 +134,11 @@ suite "Compare parsers table vs codegen LL(1)":
   #     A ::= "e" & "E"
 
   test "Double splice one-or-more":
-    testparse(@[":", ";", ":", ";", ":", ";"]):
-      A ::= *(":" & ";")
+    # testparse(@[":", ";", ":", ";", ":", ";"]):
+    #   A ::= *(":" & ";")
 
-    testparse(@[":", ";", ":", ";", ":", ";"]):
-      A ::= *(@(":" & ";"))
+    testparse(@["-", ":", ";", ":", ";", ":", ";"]):
+      A ::= "-" & @*(@(":" & ";"))
 
   # test "List DSL":
   #   testparse(@["[", "i", ",", "i", ",", "i", ",", "i", "]"]):

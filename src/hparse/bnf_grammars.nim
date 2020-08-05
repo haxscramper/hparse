@@ -208,10 +208,7 @@ func subrules*[C, L](patt: Patt[C, L]): seq[Patt[C, L]] =
 func isNested*[C, L](patt: Patt[C, L]): bool =
   patt.kind in {pkAlternative .. pkOneOrMore}
 
-func toBNF*[C, L](
-  patt: Patt[C, L],
-  parent: string,
-  idx: seq[int] = @[]): tuple[
+func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
     toprule: BnfPatt[C, L],
     newrules: seq[BnfRule[C, L]]] =
 
@@ -219,8 +216,11 @@ func toBNF*[C, L](
     of pkTerm:
       # debugecho patt.exprRepr()
       result.toprule = BnfPatt[C, L](
-        flat: false, kind: bnfTerm, tok: patt.tok,
-        tokAction: patt.action)
+        flat: false,
+        kind: bnfTerm,
+        tok: patt.tok,
+        tokAction: patt.action
+      )
     of pkNterm:
       result.toprule = BnfPatt[C, L](
         flat: false,
@@ -357,7 +357,7 @@ func toBNF*[C, L](
   rule: Rule[C, L],
   noAltFlatten: bool = false,
   renumerate: bool = false): seq[BnfRule[C, L]] =
-  let (top, newrules) = rule.patts.toBnf(rule.nterm)
+  let (top, newrules) = rule.patts.toBnf(rule.nterm, @[0])
   if noAltFlatten:
     block:
       let topflat = top.flatten()
@@ -374,11 +374,6 @@ func toBNF*[C, L](
         # result.add(rule(nterm, elems)) # ERROR expression
         # `rule(nterm, elems)` cannot be called
         result.add(rule(nterm, patt(elems))) # FIXME XXXX WTF
-
-        # if false:
-        # else:
-        #   # let elems = elems.filterIt(it.kind != fbkEmpty)
-        #   result.add rule(nterm, patt(elems)) # FIXME XXXX
   else:
     result.add rule(makeBnfNterm(rule.nterm), top) # FIXME XXXX
     result &= newrules
