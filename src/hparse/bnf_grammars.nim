@@ -167,7 +167,7 @@ func ruleId*(nterm: BnfNterm, alt: int): RuleId =
 func makeBnfNterm(parent: string, idx: seq[int]): BnfNTerm =
   BnfNterm(generated: true, idx: idx, parent: parent)
 
-func makeBnfNterm(name: string): BnfNTerm =
+func makeBnfNterm*(name: string): BnfNTerm =
   BnfNterm(generated: false, name: name)
 
 func rule*[C, L](nterm: BnfNterm, patt: BnfPatt[C, L]): BnfRule[C, L] =

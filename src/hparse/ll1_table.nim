@@ -357,7 +357,10 @@ proc parse*[C, L, I](
       let rule: RuleId = parser.parseTable.getRule(top.nterm, curr)
       let stackadd = parser.grammar.getProductions(rule)
       ppr.add TermProgress[C, L, I](
-        nterm: rule.head, expected: stackadd.symbols, acts: stackadd.getActions())
+        nterm: rule.head,
+        expected: stackadd.symbols,
+        acts: stackadd.getActions()
+      )
 
       stack &= stackadd.reversed()
 
