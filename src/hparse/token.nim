@@ -117,6 +117,15 @@ type
 func contains*[L](lset: LexSet[L], lex: L): bool =
   lex in lset.lexemes
 
+func hash*[C, L](tok: ExpectedToken[C, L]): Hash =
+  var h: Hash = 0
+  h = h !& hash(tok.cat)
+
+  when not (L is void):
+    h = h !& hash(tok.lex)
+
+  result = !$h
+
 func `==`*[C, L](l, r: ExpectedToken[C, L]): bool =
   when not (C is void):
     if (l.cat == r.cat) and (l.hasLex == r.hasLex):

@@ -2,7 +2,7 @@
 
 import grammars, token
 import parse_primitives
-import sets, hashes, sequtils, strformat, strutils
+import sets, hashes, sequtils, strformat, strutils, options
 import hmisc/helpers
 import hmisc/algo/clformat
 import hmisc/types/colorstring
@@ -137,6 +137,26 @@ func hash*(id: RuleId): Hash =
   h = h !& hash(id.head) !& hash(id.alt)
   result = !$h
 
+func hash*[C, L](key: FlatBnf[C, L]): Hash =
+  var h: Hash = 0
+  h = h !& hash(key.action) !& hash(key.isTerm)
+  if key.isTerm:
+    h = h !& hash(key.tok)
+  else:
+    h = h !& hash(key.nterm)
+
+  result = !$h
+
+
+func `==`*[C, L](l, r: FlatBnf[C, L]): bool =
+  (l.action == r.action) and (l.isTerm == r.isTerm) and (
+    block:
+      if l.isTerm:
+        l.tok == r.tok
+      else:
+        l.nterm == r.nterm
+  )
+
 func `==`*(lhs, rhs: BnfNterm): bool =
   lhs.generated == rhs.generated and (
     block:
@@ -184,6 +204,13 @@ iterator iterrules*[C, L](grammar: BnfGrammar[C, L]): tuple[
   for head, patts in grammar.rules:
     for altId, alt in patts:
       yield (id: ruleId(head, altId), alt: alt)
+
+iterator iterprods*[C, L](grammar: BnfGrammar[C, L]): tuple[
+  id: RuleId, prod: RuleProd[C, L]] =
+  for head, patts in grammar.rules:
+    for altId, alt in patts:
+      yield (id: ruleId(head, altId), prod: alt.elems)
+
 
 iterator iterrules*[C, L](grammar: BnfGrammar[C, L], head: BnfNterm): RuleId =
   for altId, _ in grammar.rules[head]:
@@ -548,27 +575,30 @@ func `$`*(nterm: BnfNterm): string = nterm.exprRepr()
 #===========================  Type definition  ===========================#
 
 type
-  RuleLookup*[C, L] = object
+  ItemLookup*[C, L, Item] = object
     ## Lookup table for rules. Mapping `Token -> RuleId`
-    rules: seq[RuleId]
+    rules: seq[Item]
     tokMap: TokLookup[C, L]
+
+  RuleLookup*[C, L] = ItemLookup[C, L, RuleId]
 
 #=============================  Predicates  ==============================#
 
 #==============================  Accessors  ==============================#
 
-func getRule*[C, L, I](rlookup: RuleLookup[C, L],
-                       tok: Token[C, L, I]
-                      ): RuleId =
+func getItem*[C, L, I, Item](
+  rlookup: ItemLookup[C, L, Item], tok: Token[C, L, I]): Item =
   ## Get single rule from lookup table. Raise exception on rule
   ## conflict.
   rlookup.rules[rlookup.tokMap.getAlt(tok)]
 
-func addRule*[C, L](rl: var RuleLookup[C, L],
-                    first: TokSet[C, L],
-                    ruleId: RuleId,
-                    canconflict: bool = false
-                   ): void =
+func `[]`*[C, L, I, Item](
+  lookup: ItemLookup[C, L, Item],
+  tok: Token[C, L, I]): Item = lookup.getItem(tok)
+
+func addItem*[C, L, Item](
+  rl: var ItemLookup[C, L, Item], first: TokSet[C, L],
+  ruleId: RuleId, canconflict: bool = false): void =
   ## Add new rule to lookup table
   let idx = rl.rules.len
   rl.rules.add ruleId
@@ -576,14 +606,18 @@ func addRule*[C, L](rl: var RuleLookup[C, L],
     # debugecho tok.exprRepr(), " -> ", ruleId.exprRepr(), " id: ", idx
     rl.tokMap.addAlt(tok, idx, canconflict = canconflict)
 
+
 #============================  Constructors  =============================#
 func initRuleLookup*[C, L](): RuleLookup[C, L] =
   RuleLookup[C, L](tokMap: initTokLookup[C, L]())
 
-func initRuleLookup*[C, L](first: TokSet[C, L],
-                           ruleId: RuleId,
-                           canconflict: bool = false
-                          ): RuleLookup[C, L] =
+func initItemLookup*[C, L, Item](): ItemLookup[C, L, Item] =
+  ItemLookup[C, L, Item](tokMap: initTokLookup[C, L]())
+
+func initRuleLookup*[C, L](
+  first: TokSet[C, L],
+  ruleId: RuleId,
+  canconflict: bool = false): RuleLookup[C, L] =
   ## Create new rule lookup table
   result = initRuleLookup[C, L]()
   result.addRule(first, ruleId, canconflict = canconflict)
@@ -607,6 +641,19 @@ type
   GItemSet* = object
     gitems*: seq[GItem]
 
+  GItemSets* = seq[GItemSet]
+
+converter toGItemSet*(rules: seq[RuleId]): GItemSet =
+  for it in rules:
+    result.gitems.add GItem(ruleId: it)
+
+func nextSymbol*[C, L](gr: BnfGrammar[C, L],
+                       item: GItem): Option[FlatBnf[C, L]] =
+  if gr.ruleBody(item.ruleId).len > item.nextPos:
+    some(gr.ruleBody(item.ruleId)[item.nextPos])
+  else:
+    none(FlatBnf[C, L])
+
 func len*(itemset: GItemSet): int = itemset.gitems.len
 func `[]`*(itemset: GItemSet, idx: int): GItem = itemset.gitems[idx]
 iterator items*(itemset: GItemSet): GItem =
@@ -623,5 +670,34 @@ func append*[A](a: var seq[A], b: A): void =
 func append*(itemset: var GItemSet, item: GItem): void =
   itemset.gitems.append item
 
+func append*(itemset: var GItemSet, rule: RuleId): void =
+  itemset.gitems.append GItem(ruleId: rule)
+
 func add*(itemset: var GItemSet, item: GItem): void =
   itemset.gitems.add item
+
+
+proc printItems*[C, L](gr: BnfGrammar[C, L],
+                      state: GItemSets, onlyFull: bool = false): void =
+  echo "\e[31mSTATE :\e[39m"
+  for idx, stateset in state:
+    echo fmt("   === {idx:^3} ===   ")
+    for item in stateset:
+      if (item.nextPos == gr.ruleBody(item.ruleId).len) or (not onlyFull):
+        var buf = fmt("{item.ruleId.exprRepr():<12}") & " ->"
+        for idx, sym in gr.ruleBody(item.ruleId):
+          if idx == item.nextPos:
+            buf &= " •"
+
+          buf &= " " & sym.exprRepr()
+          # if sym.isTerm:
+          #   buf &= " " & sym.terminal.lex
+          # else:
+          #   buf &= " " & sym.nterm
+
+        if item.nextPos == gr.ruleBody(item.ruleId).len:
+          buf = fmt("{buf:<60} \e[4m#\e[24m ({item.startPos})")
+        else:
+          buf = fmt("{buf:<60}   ({item.startPos})")
+
+        echo buf

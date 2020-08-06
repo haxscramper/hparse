@@ -9,7 +9,7 @@ type
     ruleId: RuleId
     finish: int
 
-  State = seq[GItemSet]
+  State = GItemSets # seq[GItemSet]
   Chart = seq[seq[SItemId]]
   NullSet = object
     nulls: HashSet[BnfNterm]
@@ -36,12 +36,6 @@ func matches[C, L, I](sym: FlatBnf[C, L],
 func contains*(ns: NullSet, s: BnfNterm): bool = s in ns.nulls
 func len*(ns: NullSet): int = ns.nulls.len
 
-
-func nextSymbol[C, L](gr: BnfGrammar[C, L], item: GItem): Option[FlatBnf[C, L]] =
-  if gr.ruleBody(item.ruleId).len > item.nextPos:
-    some(gr.ruleBody(item.ruleId)[item.nextPos])
-  else:
-    none(FlatBnf[C, L])
 
 #*************************************************************************#
 #**********************  Nullable set construction  **********************#
@@ -100,30 +94,6 @@ proc printChart[C, L](gr: BnfGrammar[C, L], state: Chart): void =
       echo buf
     echo ""
 
-proc printItems[C, L](gr: BnfGrammar[C, L], state: State, onlyFull: bool = false): void =
-  echo "\e[31mSTATE :\e[39m"
-  for idx, stateset in state:
-    echo fmt("   === {idx:^3} ===   ")
-    for item in stateset:
-      if (item.nextPos == gr.ruleBody(item.ruleId).len) or (not onlyFull):
-        var buf = fmt("{item.ruleId.exprRepr():<12}") & " ->"
-        for idx, sym in gr.ruleBody(item.ruleId):
-          if idx == item.nextPos:
-            buf &= " •"
-
-          buf &= " " & sym.exprRepr()
-          # if sym.isTerm:
-          #   buf &= " " & sym.terminal.lex
-          # else:
-          #   buf &= " " & sym.nterm
-
-        if item.nextPos == gr.ruleBody(item.ruleId).len:
-          buf = fmt("{buf:<60} \e[4m#\e[24m ({item.startPos})")
-        else:
-          buf = fmt("{buf:<60}   ({item.startPos})")
-
-        echo buf
-
 proc printTreeRepr*[C, L, I](pt: ParseTree[C, L, I], level: int = 0): void =
   let pref = "  ".repeat(level)
   case pt.kind:
@@ -175,16 +145,13 @@ func complete[C, L, I](state: var State,
   let item = state[i][j]
   for oldItem in state[item.startPos]:
     let next = gr.nextSymbol(oldItem)
-    if next.isNone():
+    if next.isNone() or next.isTerm():
       discard
     else:
       let sym = next.get()
-      if sym.isTerm:
-        discard
-      else:
-        if sym.nterm == item.ruleId.head:
-          state[i].append oldItem.withIt do:
-            inc it.nextPos
+      if sym.nterm == item.ruleId.head:
+        state[i].append oldItem.withIt do:
+          inc it.nextPos
 
 func buildItems[C, L, I](parser: EarleyParser[C, L],
                          toks: TokStream[Token[C, L, I]]): State =
