@@ -230,11 +230,14 @@ proc generateGrammar*(body: NimNode): NimNode =
   result = nnkTableConstr.newTree()
   for rule in body:
     assert rule.kind == nnkInfix and $rule[0] == "::="
-    result.add newColonExpr(
-      newLit($rule[1]),
-      rule[2].flattenPatt().toCalls())
+    if rule[2] == ident("null"):
+      result.add newColonExpr(newLit($rule[1]), newCall("null"))
+    else:
+      result.add newColonExpr(
+        newLit($rule[1]),
+        rule[2].flattenPatt().toCalls())
 
-  # echo result.toStrLit()
+  echo result.toStrLit()
 
 
 macro initGrammarImpl*(body: untyped): untyped = generateGrammar(body)
@@ -245,6 +248,8 @@ template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
     proc tok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
   else:
     proc tok(lex: string): Patt[catT, lexT] = tok[catT, lexT](catT(0), lex)
+
+  proc null(): Patt[catT, lexT] = nullP[catT, lexT]()
 
   when not (catT is void):
     proc tok(cat: catT): Patt[catT, lexT] =

@@ -198,6 +198,8 @@ func rule*[C, L](nterm: BnfNterm, patt: BnfPatt[C, L]): BnfRule[C, L] =
 func patt*[C, L](elems: RuleProd[C, L]): BnfPatt[C, L] =
   BnfPatt[C, L](flat: true, elems: elems)
 
+func patt*[C, L](): BnfPatt[C, L] = BnfPatt[C, L](flat: true)
+
 #==============================  Accessors  ==============================#
 
 iterator iterrules*[C, L](grammar: BnfGrammar[C, L]): tuple[
@@ -385,15 +387,19 @@ func toBNF*[C, L](
   rule: Rule[C, L],
   noAltFlatten: bool = false,
   renumerate: bool = false): seq[BnfRule[C, L]] =
+  debugecho rule.exprRepr()
   let (top, newrules) = rule.patts.toBnf(rule.nterm, @[0])
   if noAltFlatten:
     block:
       let topflat = top.flatten()
-      for elems in topflat:
-        mixin makeBnfNterm, patt
-        #[ IMPLEMENT expression cannot be called error ]#
-        # FIXME XXXX
-        result.add rule(makeBnfNterm(rule.nterm), patt(elems))
+      if topflat.len == 0:
+        result.add rule(makeBNFNterm(rule.nterm), patt[C, L]())
+      else:
+        for elems in topflat:
+          mixin makeBnfNterm, patt
+          #[ IMPLEMENT expression cannot be called error ]#
+          # FIXME XXXX
+          result.add rule(makeBnfNterm(rule.nterm), patt(elems))
 
     for rule in newrules:
       let newpatts = rule.patt.flatten()
@@ -421,7 +427,7 @@ func toBNF*[C, L](grammar: Grammar[C, L]): BnfGrammar[C, L] =
     grammar.rules.mapIt(it.toBNF(noAltFlatten = true, renumerate = false)).concat())
 
   result.start = BnfNterm(generated: false, name: grammar.start)
-  debugecho result.exprRepr()
+  # debugecho result.exprRepr()
 
 
 
@@ -438,7 +444,7 @@ func `[]`*[C, L](grammar: BnfGrammar[C, L], rule: RuleId): BnfPatt[C, L] =
 func getProductions*[C, L](
   grammar: BnfGrammar[C, L], id: RuleId): RuleProd[C, L] =
   ## Get list of productions from flat bnf pattern at `id`
-  debugecho id.exprRepr()
+  # debugecho id.exprRepr()
   grammar.rules[id.head][id.alt].elems
 
 func getActions*[C, L](grammar: BnfGrammar[C, L],

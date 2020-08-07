@@ -1,17 +1,17 @@
 import bnf_grammars, parse_primitives, token, parse_tree, grammars
 import deques
 import hmisc/helpers
+import hmisc/algo/hseq_mapping
 
 type
   AltId* = int
   FirstTable*[C, L] = Table[BnfNterm, Table[AltId, TokSet[C, L]]]
   FollowTable*[C, L] = Table[BnfNterm, TokSet[C, L]]
+  NullableSet* = Table[BnfNterm, seq[AltId]]
 
 func `|=`*(a: var bool, b: bool): void = a = a or b
 
-func isNullable*[C, L](
-  fbnf: GSym[C, L],
-  nulls: Table[BnfNterm, seq[AltId]]): bool =
+func isNullable*[C, L](fbnf: GSym[C, L], nulls: NullableSet): bool =
   if fbnf.isTerm:
     false
   else:

@@ -68,6 +68,9 @@ func optP*[C, L](patt: Patt[C, L]): Patt[C, L] =
 func andP*[C, L](patts: varargs[Patt[C, L]]): Patt[C, L] =
   Patt[C, L](kind: pkConcat, patts: toSeq(patts))
 
+func nullP*[C, L](): Patt[C, L] =
+  Patt[C, L](kind: pkConcat)
+
 func orP*[C, L](patts: varargs[Patt[C, L]]): Patt[C, L] =
   Patt[C, L](kind: pkAlternative, patts: toSeq(patts))
 
@@ -136,6 +139,7 @@ func exprRepr*[C, L](
     of pkTerm:
       act & (patt.tok.exprRepr(conf))
     of pkNTerm:
+      mixin toYellow
       if patt.action != taDefault:
         (&"{patt.action.exprRepr(conf)}{toYellow(patt.nterm, conf.colored)}"
         ).wrap(conf.ntermWrap)

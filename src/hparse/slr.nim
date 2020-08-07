@@ -35,7 +35,7 @@ type
   LRGotoTable*[C, L] = object
     statecount: int
     # IDEA REVIEW add '2d table' data type for handing things like that
-    table: Table[StateId, Table[FlatBnf[C, L], StateId]]
+    table: Table[StateId, Table[GSym[C, L], StateId]]
 
   LRStack*[C, L, I] = seq[tuple[state: StateId, tree: ParseTree[C, L, I]]]
 
@@ -60,7 +60,7 @@ func `[]`[C, L, I](action: LRActionTable[C, L],
 
 func getStateImpl[C, L](goto: LRGotoTable,
                         state: StateId,
-                        key: FlatBnf[C, L]): StateId =
+                        key: GSym[C, L]): StateId =
   let key = key.withIt do: it.action = taDefault
   try:
     return goto.table[state][key]
@@ -75,29 +75,29 @@ func getStateImpl[C, L](goto: LRGotoTable,
 
 func `[]`[C, L](goto: LRGotoTable[C, L],
                 state: StateId, nterm: BnfNterm): StateId =
-  return goto.getStateImpl(state, FlatBnf[C, L](isTerm: false, nterm: nterm))
+  return goto.getStateImpl(state, GSym[C, L](isTerm: false, nterm: nterm))
 
 func `[]`[C, L](goto: LRGotoTable[C, L],
                 state: StateId, tok: ExpectedToken[C, L]): StateId =
-  return goto.getStateImpl(state, FlatBnf[C, L](isTerm: true, tok: tok))
+  return goto.getStateImpl(state, GSym[C, L](isTerm: true, tok: tok))
 
 func `[]`[C, L](goto: LRGotoTable[C, L],
                 state: StateId,
-                sym: FlatBnf[C, L]): StateId =
+                sym: GSym[C, L]): StateId =
   return goto.getStateImpl(state, sym)
 
 func contains[C, L](goto: LRGotoTable[C, L],
                     pair: (StateId, ExpectedToken[C, L])): bool =
   (pair[0] in goto.table) and (
-    FlatBnf[C, L](isTerm: true, tok: pair[1]) in goto.table[pair[0]])
+    GSym[C, L](isTerm: true, tok: pair[1]) in goto.table[pair[0]])
 
 
 func contains[C, L](goto: LRGotoTable[C, L],
-                    pair: (StateId, FlatBnf[C, L])): bool =
+                    pair: (StateId, GSym[C, L])): bool =
   (pair[0] in goto.table) and (pair[1] in goto.table[pair[0]])
 
 func `[]=`[C, L](goto: var LRGotoTable[C, L],
-                 accs: (StateId, FlatBnf[C, L]),
+                 accs: (StateId, GSym[C, L]),
                  state: StateId): void =
   let key = accs[1].withIt do:
     it.action = taDefault
@@ -130,7 +130,7 @@ func addMain*[C, L](grammar: BnfGrammar[C, L]): BnfGrammar[C, L] =
   result = grammar
   let start = makeBnfNterm("main_" & grammar.start.name)
   result.rules[start] = @[patt(
-    initRuleProd(@[ FlatBnf[C, L](isTerm: false, nterm: grammar.start) ])
+    initRuleProd(@[ GSym[C, L](isTerm: false, nterm: grammar.start) ])
   )]
 
   result.start = start
@@ -158,7 +158,7 @@ func makeClosure*[C, L](grammar: BnfGrammar[C, L],
 
 func getGoto*[C, L](grammar: BnfGrammar[C, L],
                     itemset: GItemSet,
-                    sym: FlatBnf[C, L]): GItemSet =
+                    sym: GSym[C, L]): GItemSet =
 
   for item in itemset:
     let next = grammar.nextSymbol(item)
@@ -171,7 +171,7 @@ func getGoto*[C, L](grammar: BnfGrammar[C, L],
   return grammar.makeClosure(result)
 
 
-func grSymbols*[C, L](grammar: BnfGrammar[C, L]): HashSet[FlatBnf[C, L]] =
+func grSymbols*[C, L](grammar: BnfGrammar[C, L]): HashSet[GSym[C, L]] =
   toHashSet: collect(newSeq):
     for ruleid, prod in grammar.iterprods():
       for sym in prod:

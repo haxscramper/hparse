@@ -3,6 +3,7 @@ import hmisc/helpers
 import hmisc/algo/halgorithm
 import initcalls
 import parse_primitives
+import hmisc/types/colorstring
 
 ## Parse tree contains actual token /values/ - concrete lexemes and
 ## additional information (whatever you deem necessary adding).
@@ -75,6 +76,9 @@ func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
   ## Create regular expected token with empty lexeme value
   ExpectedToken[C, L](kind: etokRegular, cat: category, hasLex: false)
 
+func makeExpNoCat*[L](l: L): ExpectedToken[NoCategory, L] =
+  ExpectedToken[NoCategory, L](kind: etokRegular, hasLex: true, lex: l)
+
 func makeExpEOFToken*[C, L](): ExpectedToken[C, L] =
   ## Create `EOF` token
   ExpectedToken[C, L](kind: etokEOF)
@@ -102,15 +106,20 @@ func makeToken*[C, L, I](cat: C, lex: L): Token[C, L, I] =
 func makeTokenNoInfo*[C, L](cat: C, lex: L): Token[C, L, void] =
   Token[C, L, void](kind: etokRegular, cat: cat, lex: lex)
 
-func makeTokenNoCat*[L, I](lex: L): Token[NoCategory, L, I] =
-  Token[NoCategory, L, I](kind: etokRegular, lex: lex, cat: catNoCategory)
+func makeTokenNoCatInfo*[L](lex: L): Token[NoCategory, L, void] =
+  Token[NoCategory, L, void](
+    kind: etokRegular, lex: lex, cat: catNoCategory)
+
+func makeTokenNoCat*[L, I](lex: L, info: I): Token[NoCategory, L, I] =
+  Token[NoCategory, L, I](
+    kind: etokRegular, lex: lex, cat: catNoCategory, info: info)
 
 func makeTokens*[C, L](cats: seq[C]): seq[Token[C, L, void]] =
   cats.mapIt(Token[C, L, void](cat: it))
 
 func makeTokens*(lexemes: seq[string]
                 ): seq[Token[NoCategory, string, void]] =
-  lexemes.mapIt(makeTokenNoCat[string, void](it))
+  lexemes.mapIt(makeTokenNoCatInfo[string](it))
 
 
 #==============================  Accessors  ==============================#
@@ -237,17 +246,6 @@ type
     hasEof: bool
 
 
-#=============================  Predicates  ==============================#
-func contains*[C, L, I](s: TokSet[C, L], tk: Token[C, L, I]): bool =
-  if tk.cat in s.tokens:
-    (s.tokens[tk.cat].hasAll) or (tk.lex in s.tokens[tk.cat])
-  else:
-    false
-
-func contains*[C, L](s: TokSet[C, L], tk: EofTok): bool =
-  s.hasEof
-
-
 #===============================  Getters  ===============================#
 func getTokens*[C, L](tset: TokSet[C, L]): Table[C, LexSet[L]] =
   tset.tokens
@@ -269,6 +267,36 @@ iterator items*[C, L](s: TokSet[C, L]): ExpectedToken[C, L] =
 iterator pairs*[C, L](s: TokSet[C, L]): (C, LexSet[L]) =
   for cat, lset in s.tokens:
     yield (cat, lset)
+
+#=============================  Predicates  ==============================#
+func contains*[C, L, I](s: TokSet[C, L], tk: Token[C, L, I]): bool =
+  if tk.cat in s.tokens:
+    (s.tokens[tk.cat].hasAll) or (tk.lex in s.tokens[tk.cat])
+  else:
+    false
+
+func contains*[C, L](s: TokSet[C, L], tk: EofTok): bool =
+  s.hasEof
+
+func contains*[C, L](s: TokSet[C, L], tk: ExpectedToken[C, L]): bool =
+  if tk.cat in s.tokens:
+    # if tk.hasLex:
+    (s.tokens[tk.cat].hasAll) or (tk.hasLex and tk.lex in s.tokens[tk.cat])
+    # else:
+    #   s.tokens[tk.cat].has
+  else:
+    false
+
+func sameset*[C, L](s1, s2: TokSet[C, L]): bool =
+  for item in s1:
+    if item notin s2:
+      return false
+
+  for item in s2:
+    if item notin s1:
+      return false
+
+  return true
 
 
 #===============================  Setters  ===============================#
@@ -311,6 +339,10 @@ func containsOrIncl*[C, L](
 
 
 #============================  Constructors  =============================#
+func makeTokSet*(toks: seq[string]): TokSet[NoCategory, string] =
+  for item in toks:
+    result.incl makeExpNoCat(item)
+
 func makeTokSet*[C, L](): TokSet[C, L] =
   TokSet[C, L](tokens: initTable[C, LexSet[L]](2))
 
@@ -339,6 +371,9 @@ func union*[C, L](s: seq[TokSet[C, L]]): TokSet[C, L] =
       else:
         result.tokens[cat].incl lset
 
+func sameset*(s1: TokSet[NoCategory, string],
+              s2: openarray[string]): bool =
+  s1.sameset(makeTokSet(toSeq(s2)))
 
 
 #========================  Other implementation  =========================#
@@ -559,18 +594,6 @@ type
     line*: int
     column*: int
     filename*: string
-
-  # ParserErrorKind* = enum
-
-  #   pekUnexpectedToken
-
-  # ParserError = ref object of CatchableError
-  #   linepos*: Option[LinePosInfo]
-  #   case kind*: ParserErrorKind
-  #     of pekUnexpectedToken:
-  #       expected*: string
-  #       intoken*: string
-  #       inputpos*: int
 
 func exprRepr*[C, L, I](tok: Token[C, L, I]): string =
   # TODO remove prefix from category enum
