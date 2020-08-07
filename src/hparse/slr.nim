@@ -2,6 +2,7 @@ import strutils, strformat, sequtils, sugar, sets, options
 import hmisc/helpers
 import hmisc/types/seq2d
 import hdrawing, hdrawing/term_buf
+import hasts/graphviz_ast
 
 import parse_tree, token, lexer, bnf_grammars, grammars, bnf_algo,
        parse_primitives
@@ -88,6 +89,11 @@ func contains[C, L](goto: LRGotoTable[C, L],
   (pair[0] in goto.table) and (
     FlatBnf[C, L](isTerm: true, tok: pair[1]) in goto.table[pair[0]])
 
+
+func contains[C, L](goto: LRGotoTable[C, L],
+                    pair: (StateId, FlatBnf[C, L])): bool =
+  (pair[0] in goto.table) and (pair[1] in goto.table[pair[0]])
+
 func `[]=`[C, L](goto: var LRGotoTable[C, L],
                  accs: (StateId, FlatBnf[C, L]),
                  state: StateId): void =
@@ -163,16 +169,20 @@ func getGoto*[C, L](grammar: BnfGrammar[C, L],
   return grammar.makeClosure(result)
 
 
+func grSymbols*[C, L](grammar: BnfGrammar[C, L]): HashSet[FlatBnf[C, L]] =
+  toHashSet: collect(newSeq):
+    for ruleid, prod in grammar.iterprods():
+      for sym in prod:
+        sym
+
 func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
   goto: LRGotoTable[C, L], gitems: GItemSets] =
   var
     gitems = @[ makeClosure(grammar, @[ ruleId(grammar.start, 0) ]) ]
     goto: LRGotoTable[C, L]
 
-  let grSymbols = toHashSet: collect(newSeq):
-    for ruleid, prod in grammar.iterprods():
-      for sym in prod:
-          sym
+  let grSymbols = grammar.grSymbols()
+  # debugecho "makeItemsetl;s"
 
   while true:
     let size = gitems.len
@@ -189,14 +199,18 @@ func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
         let gset = grammar.getGoto(itemset, sym)
         if gset.len > 0 and gset notin gitems:
           gitems.add gset
-          goto[(StateId(setid), sym)] = StateId(gitems.len)
+          debugecho gitems.len
+          goto[(StateId(setid), sym)] = StateId(gitems.len - 1)
           # debugecho sym
-          debugecho &"Goto {setid}, {sym.exprRepr()} -> {goto[StateId(setid), sym].int}"
-          debugecho gset.exprRepr(grammar)
+          # debugecho &"Goto {setid}, {sym.exprRepr()} -> {goto[StateId(setid), sym].int}"
+          # debugecho gset.exprRepr(grammar)
           # debugecho "\e[41m*=========\e[49m  eee  \e[41m==========*\e[49m"
 
     if size == gitems.len:
       break
+
+  for idx, itemset in mpairs(gitems):
+    itemset.id = idx
 
   result.gitems = gitems
   result.goto = goto
@@ -225,6 +239,25 @@ func makeAction*[C, L](grammar: BnfGrammar[C, L],
               state: goto[StateId(gsetid), sym.tok]
             )
 
+func dotRepr*[C, L](goto: LRGotoTable[C, L],
+                    sets: GItemSets,
+                    grammar: BnfGrammar[C, L],
+                    conf: GrammarPrintConf = defaultGrammarPrintConf): Graph =
+
+  for gsetid, gset in sets:
+    result.addNode gset.dotNodeRepr(grammar, conf)
+    for sym in grammar.grSymbols():
+      if (StateId(gsetid), sym) in goto:
+        result.addEdge makeEdge(
+          gsetid.int.toNodeId(),
+          goto[StateId(gsetid), sym].int.toNodeId(),
+          sym.exprRepr(conf.withIt do: it.colored = false)
+        )
+
+  result.styleNode.fontname = "Consolas"
+  result.styleEdge.fontname = "Consolas"
+  result.styleNode.shape = nsaRect
+
 func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
   result.grammar = grammar.toBNF().addMain()
   let (goto, gitems) = result.grammar.makeItemsets()
@@ -233,6 +266,10 @@ func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
 
   result.goto = goto
   result.action = result.grammar.makeAction(goto, gitems)
+
+  {.noSideEffect.}:
+    let graph = dotRepr(goto, gitems, result.grammar)
+    graph.topng("/tmp/goto-sets.png")
 
 
 func gridRepr*[C, L](action: LRActionTable[C, L]): Seq2D[string] =
@@ -267,11 +304,18 @@ template top*[T](s: var seq[T]): var T = s[^1]
 proc parse*[C, L, I](
   parser: SLRParser[C, L],
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
-  echo newTermGrid(
-    (0,0),
-    parser.action.gridRepr().toTermBufGrid(),
-    makeThinLineGridBorders()
-  ).toTermBuf().toString()
+  echo @[
+    newTermGrid(
+      (0,0),
+      parser.action.gridRepr().toTermBufGrid(),
+      makeThinLineGridBorders()
+    ).toTermBuf(),
+    makeTermBuf(w = 2, h = 1),
+    concatBufsTop(@[
+      makeTermBuf(w = 2, h = 1),
+      parser.grammar.exprRepr().toTermBuf()
+    ])
+  ].concatBufsLeft().toString()
 
   var
     curr: Token[C, L, I] = toks.next()

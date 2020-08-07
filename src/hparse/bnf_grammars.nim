@@ -6,6 +6,7 @@ import sets, hashes, sequtils, strformat, strutils, options
 import hmisc/helpers
 import hmisc/algo/clformat
 import hmisc/types/colorstring
+import hasts/graphviz_ast
 
 #*************************************************************************#
 #**************************  Type declarations  **************************#
@@ -680,7 +681,10 @@ func append*(itemset: var GItemSet, rule: RuleId): void =
   itemset.gitems.append GItem(ruleId: rule)
 
 func add*(itemset: var GItemSet, item: GItem): void =
+  # debugecho itemset.gitems.len
   itemset.gitems.add item
+  # debugecho itemset.gitems.len
+  # debugecho "\e[41m*=========\e[49m  sdfa  \e[41m=========*\e[49m"
 
 func exprRepr*[C, L](stateset: GItemSet,
                      gr: BnfGrammar[C, L],
@@ -689,10 +693,11 @@ func exprRepr*[C, L](stateset: GItemSet,
                      asEarley: bool = false): string =
 
   var resbuf: seq[string]
+  let maxw = stateset.maxIt(it.ruleId.exprRepr().termLen())
   for item in stateset:
     if (item.nextPos == gr.ruleBody(item.ruleId).len) or (not onlyFull):
       var buf = item.ruleId.exprRepr(conf.normalizeNterms
-          ).termAlignLeft(12) & " ->"
+          ).termAlignLeft(maxw) & " ->"
       for idx, sym in gr.ruleBody(item.ruleId):
         if idx == item.nextPos:
           buf &= " ⦿".toMagenta(conf.colored) & sym.exprRepr(conf)
@@ -709,12 +714,24 @@ func exprRepr*[C, L](stateset: GItemSet,
           buf = fmt("{buf}   ({item.startPos})")
       else:
         if item.nextPos == gr.ruleBody(item.ruleId).len:
-          buf = buf & "⦿".toMagenta(conf.colored)
+          buf = buf & " ⦿".toMagenta(conf.colored)
 
       resbuf.add buf
 
   return resbuf.join("\n")
 
+func dotNodeRepr*[C, L](stateset: GItemSet,
+                        gr: BnfGrammar[C, L],
+                        conf: GrammarPrintConf = defaultGrammarPrintConf):
+                          Node =
+  result = makeNode(
+    stateset.id.toNodeId(),
+    label =
+      "      " & $stateset.id & "      \n" &
+      stateset.exprRepr(gr, conf.withIt do: it.colored = false)
+  )
+
+  result.labelAlign = nlaLeft
 
 proc printItems*[C, L](gr: BnfGrammar[C, L],
                        state: GItemSets, onlyFull: bool = false): void =
