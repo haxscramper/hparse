@@ -31,7 +31,7 @@ type
       of false:
         name*: NtermSym
 
-  FlatBnf*[C, L] = object
+  GSym*[C, L] = object
     action*: TreeAct
     case isTerm*: bool # REFACTOR rename to `isToken`
       of false:
@@ -45,9 +45,9 @@ type
 type
   RuleProd*[C, L] = object
     # actions*: ActLookup
-    symbols*: seq[FlatBnf[C, L]]
+    symbols*: seq[GSym[C, L]]
 
-func initRuleProd*[C, L](symbols: seq[FlatBnf[C, L]]): RuleProd[C, L] =
+func initRuleProd*[C, L](symbols: seq[GSym[C, L]]): RuleProd[C, L] =
   result.symbols = symbols
 
 func concat*[C, L](lhs, rhs: RuleProd[C, L]): RuleProd[C, L] =
@@ -62,21 +62,21 @@ func getActions*[C, L](prod: RuleProd[C, L]): ActLookup =
     if sym.action != taDefault:
       result[idx] = sym.action
 
-iterator items*[C, L](prod: RuleProd[C, L]): FlatBnf[C, L] =
+iterator items*[C, L](prod: RuleProd[C, L]): GSym[C, L] =
   for sym in prod.symbols:
     yield sym
 
-iterator pairs*[C, L](prod: RuleProd[C, L]): (int, FlatBnf[C, L]) =
+iterator pairs*[C, L](prod: RuleProd[C, L]): (int, GSym[C, L]) =
   for idx, sym in prod.symbols:
     yield (idx, sym)
 
 
-func last*[C, L](prod: RuleProd[C, L]): FlatBnf[C, L] = prod.symbols[^1]
+func last*[C, L](prod: RuleProd[C, L]): GSym[C, L] = prod.symbols[^1]
 func len*[C, L](prod: RuleProd[C, L]): int = prod.symbols.len
-func reversed*[C, L](prod: RuleProd[C, L]): seq[FlatBnf[C, L]] =
+func reversed*[C, L](prod: RuleProd[C, L]): seq[GSym[C, L]] =
   prod.symbols.reversed()
 
-func `[]`*[C, L](prod: RuleProd[C, L], idx: int): FlatBnf[C, L] =
+func `[]`*[C, L](prod: RuleProd[C, L], idx: int): GSym[C, L] =
   prod.symbols[idx]
 
 #=====================  Grammar & grammar elements  ======================#
@@ -138,7 +138,7 @@ func hash*(id: RuleId): Hash =
   h = h !& hash(id.head) !& hash(id.alt)
   result = !$h
 
-func hash*[C, L](key: FlatBnf[C, L]): Hash =
+func hash*[C, L](key: GSym[C, L]): Hash =
   var h: Hash = 0
   h = h !& hash(key.action) !& hash(key.isTerm)
   if key.isTerm:
@@ -149,7 +149,7 @@ func hash*[C, L](key: FlatBnf[C, L]): Hash =
   result = !$h
 
 
-func `==`*[C, L](l, r: FlatBnf[C, L]): bool =
+func `==`*[C, L](l, r: GSym[C, L]): bool =
   (l.action == r.action) and (l.isTerm == r.isTerm) and (
     block:
       if l.isTerm:
@@ -346,14 +346,14 @@ func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
        return @[ initRuleProd[C, L](@[]) ]
      of bnfTerm:
        return @[ initRuleProd(@[
-         FlatBnf[C, L](
+         GSym[C, L](
            isTerm: true,
            tok: patt.tok,
            action: patt.tokAction
        )])]
      of bnfNterm:
        return @[ initRuleProd(@[
-         FlatBnf[C, L](
+         GSym[C, L](
            isTerm: false,
            nterm: patt.nterm,
            action: patt.action
@@ -444,7 +444,7 @@ func getActions*[C, L](grammar: BnfGrammar[C, L],
                        id: RuleId): ActLookup =
   grammar.rules[id.head][id.alt].actions
 
-func first*[C, L](patt: BnfPatt[C, L]): FlatBnf[C, L] =
+func first*[C, L](patt: BnfPatt[C, L]): GSym[C, L] =
   assert patt.flat
   return patt.elems[0]
 
@@ -465,7 +465,7 @@ func exprRepr*(nterm: BnfNTerm, normalize: bool = false): string =
       nterm.name
 
 func exprRepr*[C, L](
-  fbnf: FlatBnf[C, L],
+  fbnf: GSym[C, L],
   conf: GrammarPrintConf = defaultGrammarPrintConf): string =
   if fbnf.isTerm:
     fbnf.action.exprRepr(conf) & fbnf.tok.exprRepr(conf)
@@ -480,7 +480,7 @@ func exprRepr*[C, L](
     ).wrap(conf.ntermWrap)
 
 func exprRepr*[C, L](
-  fbnf: seq[FlatBnf[C, L]],
+  fbnf: seq[GSym[C, L]],
   conf: GrammarPrintConf = defaultGrammarPrintConf): string =
   fbnf.mapIt(it.exprRepr(conf)).join(conf.concatSep)
 
@@ -656,11 +656,11 @@ converter toGItemSet*(rules: seq[RuleId]): GItemSet =
     result.gitems.add GItem(ruleId: it)
 
 func nextSymbol*[C, L](gr: BnfGrammar[C, L],
-                       item: GItem): Option[FlatBnf[C, L]] =
+                       item: GItem): Option[GSym[C, L]] =
   if gr.ruleBody(item.ruleId).len > item.nextPos:
     some(gr.ruleBody(item.ruleId)[item.nextPos])
   else:
-    none(FlatBnf[C, L])
+    none(GSym[C, L])
 
 func len*(itemset: GItemSet): int = itemset.gitems.len
 func `[]`*(itemset: GItemSet, idx: int): GItem = itemset.gitems[idx]

@@ -10,7 +10,7 @@ type
 func `|=`*(a: var bool, b: bool): void = a = a or b
 
 func isNullable*[C, L](
-  fbnf: FlatBnf[C, L],
+  fbnf: GSym[C, L],
   nulls: Table[BnfNterm, seq[AltId]]): bool =
   if fbnf.isTerm:
     false

@@ -203,7 +203,7 @@ proc newLL1TableParser*[C, L](
 type
   TermProgress[C, L, I] = object
     nterm: BnfNterm
-    expected: seq[FlatBnf[C, L]]
+    expected: seq[GSym[C, L]]
     acts: ActLookup
     elems: seq[ParseTree[C, L, I]]
 
@@ -219,11 +219,11 @@ proc parse*[C, L, I](
   parser: LL1TableParser[C, L],
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
   var
-    stack: seq[FlatBnf[C, L]] # Symbols stack
+    stack: seq[GSym[C, L]] # Symbols stack
     curr: Token[C, L, I] = toks.next() # Current input token
     ppr: seq[TermProgress[C, L, I]] = @[] # Parse progres for all rules
 
-  stack.add FlatBnf[C, L](isTerm: false, nterm: parser.start)
+  stack.add GSym[C, L](isTerm: false, nterm: parser.start)
 
   template foldstack(): untyped =
     let forcefold = toks.finished()
@@ -246,7 +246,7 @@ proc parse*[C, L, I](
 
 
   while true:
-    let top: FlatBnf[C, L] = stack.pop()
+    let top: GSym[C, L] = stack.pop()
     if top.isTerm:
       assertToken(top.tok, curr)
       ppr.last().elems.add newTree(curr)

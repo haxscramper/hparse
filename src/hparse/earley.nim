@@ -25,7 +25,7 @@ func add*(state: var State, itemset: seq[GItem]): void =
 #**************************  Helper functions  ***************************#
 #*************************************************************************#
 
-func matches[C, L, I](sym: FlatBnf[C, L],
+func matches[C, L, I](sym: GSym[C, L],
                       toks: TokStream[Token[C, L, I]],
                       pos: int): bool =
   if toks.finished or (not sym.isTerm):
@@ -115,7 +115,7 @@ proc printTreeRepr*[C, L, I](pt: ParseTree[C, L, I], level: int = 0): void =
 func predict[C, L](state: var State,
                    i, j: int,
                    nullable: NullSet,
-                   symbol: FlatBnf[C, L],
+                   symbol: GSym[C, L],
                    gr: BnfGrammar[C, L]): void =
   let symbol = symbol.nterm
   for (ruleId, _) in gr.iterrules():
@@ -128,7 +128,7 @@ func predict[C, L](state: var State,
 
 func scan[C, L, I](state: var State,
                    i, j: int,
-                   symbol: FlatBnf[C, L],
+                   symbol: GSym[C, L],
                    gr: BnfGrammar[C, L],
                    toks: TokStream[Token[C, L, I]]): void =
   if symbol.matches(toks, i):
@@ -163,13 +163,13 @@ func buildItems[C, L, I](parser: EarleyParser[C, L],
   while itemset < result.len:
     var j = 0
     while j < result[itemset].len:
-      let next: Option[FlatBnf[C, L]] = parser.grammar.nextSymbol(
+      let next: Option[GSym[C, L]] = parser.grammar.nextSymbol(
         result[itemset][j])
 
       if next.isNone():
         complete(result, itemset, j, parser.grammar, toks)
       else:
-        let sym: FlatBnf[C, L] = next.get()
+        let sym: GSym[C, L] = next.get()
         if sym.isTerm:
           scan(result, itemset, j, sym, parser.grammar, toks)
         else:
@@ -183,7 +183,7 @@ func chartOfItems[C, L](grammar: BnfGrammar[C, L],
   result = state.mapIt(newSeqWith(0, SItemId()))
   for idx, itemset in state:
     for item in itemset:
-      let sym: Option[FlatBnf[C, L]] = grammar.nextSymbol(item)
+      let sym: Option[GSym[C, L]] = grammar.nextSymbol(item)
       if sym.isSome():
         discard
       else:
