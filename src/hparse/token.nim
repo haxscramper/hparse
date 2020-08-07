@@ -349,6 +349,11 @@ func contains*[L](ll: LexLookup[L], lex: L): bool =
 
 #==============================  Accessors  ==============================#
 
+iterator pairs*[L](tl: LexLookup[L]): (L, int) =
+  for lex, alts in tl.table:
+    for alt in alts:
+      yield (lex, alt)
+
 func `[]`*[L](tl: var LexLookup[L], lex: L): var seq[int] =
   tl.table[lex]
 
@@ -469,6 +474,15 @@ func makeTokLookup*[C, L](
 
 #==============================  Accessors  ==============================#
 
+iterator pairs*[C, L](lookup: TokLookup[C, L]
+                     ): (ExpectedToken[C, L], int) =
+  for cat, lexset in lookup.table:
+    for hasall in lexset.hasAll:
+      yield (makeExpToken[C, L](cat), hasall)
+
+    for lex, altid in lexset:
+      yield (makeExpToken(cat, lex), altid)
+
 func getAlt*[C, L, I](
   lookup: TokLookup[C, L], token: Token[C, L, I]): int =
   ## Get select alternative set based on token category and lexeme values.
@@ -491,7 +505,9 @@ func getAlt*[C, L, I](
       else:
         return alts[0]
     else:
-      raiseAssert("#[ IMPLEMENT token lexeme not found ]#")
+      raiseAssert(
+        &"No item in lookup matches lexeme for token: {token.exprRepr()}"
+      )
   else:
     raiseAssert("#[ IMPLEMENT token category not found ]#")
 

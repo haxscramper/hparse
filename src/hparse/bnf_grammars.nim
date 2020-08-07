@@ -607,6 +607,11 @@ func addItem*[C, L, Item](
     rl.tokMap.addAlt(tok, idx, canconflict = canconflict)
 
 
+iterator pairs*[C, L, Item](il: ItemLookup[C, L, Item]
+                           ): (ExpectedToken[C, L], Item) =
+  for key, idx in il.tokMap:
+    yield (key, il.rules[idx])
+
 #============================  Constructors  =============================#
 func initRuleLookup*[C, L](): RuleLookup[C, L] =
   RuleLookup[C, L](tokMap: initTokLookup[C, L]())

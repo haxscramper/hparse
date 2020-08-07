@@ -1,5 +1,7 @@
 import strutils, strformat, sequtils, sugar, sets, options
 import hmisc/helpers
+import hmisc/types/seq2d
+import hdrawing, hdrawing/term_buf
 
 import parse_tree, token, lexer, bnf_grammars, grammars, bnf_algo,
        parse_primitives
@@ -37,6 +39,16 @@ type
   LRStack*[C, L, I] = seq[tuple[state: StateId, tree: ParseTree[C, L, I]]]
 
 
+#===========================  Pretty-printing  ===========================#
+
+func exprRepr(lra: LRAction): string =
+  case lra.kind:
+    of laShift: &"s{lra.state.int}"
+    of laReduce: &"r{lra.reduce.exprRepr()}"
+    of laError: "err"
+    of laAccept: "acc"
+
+
 #=========================  Misc implementation  =========================#
 
 func `==`(l, r: StateId): bool = (l.int == r.int)
@@ -70,6 +82,11 @@ func `[]`[C, L](goto: LRGotoTable[C, L],
 #                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #                   |
 #                   Cursed code detected
+
+func contains[C, L](goto: LRGotoTable[C, L],
+                    pair: (StateId, ExpectedToken[C, L])): bool =
+  (pair[0] in goto.table) and (
+    FlatBnf[C, L](isTerm: true, tok: pair[1]) in goto.table[pair[0]])
 
 func `[]=`[C, L](goto: var LRGotoTable[C, L],
                  accs: (StateId, FlatBnf[C, L]),
@@ -202,10 +219,11 @@ func makeAction*[C, L](grammar: BnfGrammar[C, L],
         if sym.isTerm:
           # debugecho gsetid, " ", sym.tok.exprRepr()
           # debugecho sym
-          result[StateId(gsetid), sym.tok] = LRAction(
-            kind: laShift,
-            state: goto[StateId(gsetid), sym.tok]
-          )
+          if (StateId(gsetid), sym.tok) in goto:
+            result[StateId(gsetid), sym.tok] = LRAction(
+              kind: laShift,
+              state: goto[StateId(gsetid), sym.tok]
+            )
 
 func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
   result.grammar = grammar.toBNF().addMain()
@@ -217,12 +235,44 @@ func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
   result.action = result.grammar.makeAction(goto, gitems)
 
 
+func gridRepr*[C, L](action: LRActionTable[C, L]): Seq2D[string] =
+  # let states: seq[StateId] = collect(newSeq):
+  #   for state, _ in action.table:
+  #     state
+
+  let headermap: Table[ExpectedToken[C, L], int] = block:
+    let keys = collect(newSeq):
+      for _, tokmap in action.table:
+        for tok, _ in tokmap:
+          tok
+
+    collect(initTable):
+      for colIdx, key in deduplicate(keys):
+        # debugecho colIdx, " ", key.exprRepr()
+        {key : colIdx + 1}
+
+  result.fillToSize(rows = action.table.len + 4,
+                    cols = headermap.len + 1, default = "")
+  for state, tokmap in action.table:
+    result[state.int + 1, 0] = $state.int
+    for tok, action in tokmap:
+      # debugecho state.int + 1, ", ", headermap[tok], " -> ", tok.exprRepr()
+      result[state.int + 1, headermap[tok]] = action.exprRepr()
+
+  for key, colIdx in headermap:
+    result[0, colIdx] = key.exprRepr()
 
 template top*[T](s: var seq[T]): var T = s[^1]
 
 proc parse*[C, L, I](
   parser: SLRParser[C, L],
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
+  echo newTermGrid(
+    (0,0),
+    parser.action.gridRepr().toTermBufGrid(),
+    makeThinLineGridBorders()
+  ).toTermBuf().toString()
+
   var
     curr: Token[C, L, I] = toks.next()
     stack: LRStack[C, L, I] = @[(StateId(0), newTree[C, L, I](@[]))]
