@@ -24,7 +24,7 @@ func addRule*[C, L](
 
 func getRule*[C, L, I](
   rlookup: RuleLookup[C, L], tok: Token[C, L, I]): RuleId =
-  let tmp: RuleId = rlookup.getItem(tok)
+  rlookup.getItem(tok)
 
 func initRuleLookup*[C, L](): RuleLookup[C, L] =
   initItemLookup[C, L, RuleId]()

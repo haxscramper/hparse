@@ -438,6 +438,7 @@ func `[]`*[C, L](grammar: BnfGrammar[C, L], rule: RuleId): BnfPatt[C, L] =
 func getProductions*[C, L](
   grammar: BnfGrammar[C, L], id: RuleId): RuleProd[C, L] =
   ## Get list of productions from flat bnf pattern at `id`
+  debugecho id.exprRepr()
   grammar.rules[id.head][id.alt].elems
 
 func getActions*[C, L](grammar: BnfGrammar[C, L],
