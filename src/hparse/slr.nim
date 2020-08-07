@@ -58,13 +58,10 @@ func `[]`[C, L, I](action: LRActionTable[C, L],
                    state: StateId, tok: Token[C, L, I]): LRAction =
   action.table[state][tok]
 
-func `[]`[C, L](goto: LRGotoTable[C, L],
-                state: StateId, nterm: BnfNterm): StateId =
-  goto.table[state][FlatBnf[C, L](isTerm: false, nterm: nterm)]
-
-func `[]`[C, L](goto: LRGotoTable[C, L],
-                state: StateId, tok: ExpectedToken[C, L]): StateId =
-  let key = FlatBnf[C, L](isTerm: true, tok: tok)
+func getStateImpl[C, L](goto: LRGotoTable,
+                        state: StateId,
+                        key: FlatBnf[C, L]): StateId =
+  let key = key.withIt do: it.action = taDefault
   try:
     return goto.table[state][key]
   except KeyError:
@@ -72,17 +69,22 @@ func `[]`[C, L](goto: LRGotoTable[C, L],
       raise newException(KeyError, &"No values for state {state.int}")
     else:
       raise newException(KeyError,
-        &"No transitions for token {tok.exprRepr()} in " &
+        &"No transitions for token {key.exprRepr()} in " &
         &"state {state.int} (key: {key})")
 
 
 func `[]`[C, L](goto: LRGotoTable[C, L],
+                state: StateId, nterm: BnfNterm): StateId =
+  return goto.getStateImpl(state, FlatBnf[C, L](isTerm: false, nterm: nterm))
+
+func `[]`[C, L](goto: LRGotoTable[C, L],
+                state: StateId, tok: ExpectedToken[C, L]): StateId =
+  return goto.getStateImpl(state, FlatBnf[C, L](isTerm: true, tok: tok))
+
+func `[]`[C, L](goto: LRGotoTable[C, L],
                 state: StateId,
                 sym: FlatBnf[C, L]): StateId =
-  goto.table[state][sym.withIt do: it.action = taDefault]
-#                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#                   |
-#                   Cursed code detected
+  return goto.getStateImpl(state, sym)
 
 func contains[C, L](goto: LRGotoTable[C, L],
                     pair: (StateId, ExpectedToken[C, L])): bool =
@@ -197,14 +199,17 @@ func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
 
       for sym in grSymbols:
         let gset = grammar.getGoto(itemset, sym)
-        if gset.len > 0 and gset notin gitems:
-          gitems.add gset
-          debugecho gitems.len
-          goto[(StateId(setid), sym)] = StateId(gitems.len - 1)
-          # debugecho sym
-          # debugecho &"Goto {setid}, {sym.exprRepr()} -> {goto[StateId(setid), sym].int}"
-          # debugecho gset.exprRepr(grammar)
-          # debugecho "\e[41m*=========\e[49m  eee  \e[41m==========*\e[49m"
+        if gset.len > 0:
+          let found = gitems.find(gset)
+          if found == -1:
+            gitems.add gset
+            # debugecho gitems.len
+            goto[(StateId(setid), sym)] = StateId(gitems.len - 1)
+          else:
+            # debugecho &"Set is already in GOTO"
+            # debugecho &"[{setid}, {sym.exprRepr()}] -> {found}"
+            # debugecho gset.exprRepr(grammar)
+            goto[(StateId(setid), sym)] = StateId(found)
 
     if size == gitems.len:
       break
@@ -219,6 +224,9 @@ func makeAction*[C, L](grammar: BnfGrammar[C, L],
                        goto: LRGotoTable[C, L],
                        gitems: GItemSets): LRActionTable[C, L] =
   let (_, follow, _) = grammar.getSets()
+  for head, alts in follow:
+    dechofmt "{alts.exprRepr():>40} -> {head.exprRepr()}"
+
   for gsetid, gset in gitems:
     for item in gset:
       let next = grammar.nextSymbol(item)
@@ -257,6 +265,7 @@ func dotRepr*[C, L](goto: LRGotoTable[C, L],
   result.styleNode.fontname = "Consolas"
   result.styleEdge.fontname = "Consolas"
   result.styleNode.shape = nsaRect
+  # result.splines = spsOrtho
 
 func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
   result.grammar = grammar.toBNF().addMain()
