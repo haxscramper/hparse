@@ -24,18 +24,22 @@ type
     ## in `Token`.
     pos*: int ## Position of *token* in original lexer stream
 
-  Token*[Category, Lexeme, Info] = object
-    ## Actual value of input token
-    cat*: Category ## Token category. It is REQUIRED to be correct as
-                   ## it is always used in parsing
-    lex*: Lexeme ## Lexeme information. It OPTIONAL and might be used
-                 ## in parsing.
-    info*: Info ## Additional information in token. It is OPTIONAL and
-                ## never used in parsing.
-
   ETokKind* = enum
     etokRegular
     etokEOF
+
+  Token*[Category, Lexeme, Info] = object
+    ## Actual value of input token
+    case kind*: ETokKind
+      of etokRegular:
+        cat*: Category ## Token category. It is REQUIRED to be correct
+                       ## as it is always used in parsing
+        lex*: Lexeme ## Lexeme information. It OPTIONAL and might be
+                     ## used in parsing.
+        info*: Info ## Additional information in token. It is OPTIONAL
+                    ## and never used in parsing.
+      of etokEOF:
+        nil
 
   ExpectedToken*[C, L] = object
     ## Description of token to expect during parsing. In order for
@@ -63,10 +67,19 @@ type
 #============================  Constructors  =============================#
 
 func makeExpToken*[C, L](category: C, lexeme: L): ExpectedToken[C, L] =
-  ExpectedToken[C, L](kind: etokRegular, cat: category, lex: lexeme, hasLex: true)
+  ## Create regular expected token with category and lexeme
+  ExpectedToken[C, L](kind: etokRegular, cat: category,
+                      lex: lexeme, hasLex: true)
 
 func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
+  ## Create regular expected token with empty lexeme value
   ExpectedToken[C, L](kind: etokRegular, cat: category, hasLex: false)
+
+func makeExpEOFToken*[C, L](): ExpectedToken[C, L] =
+  ## Create `EOF` token
+  ExpectedToken[C, L](kind: etokEOF)
+
+# func makeExpEOFToken*()
 
 func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
   ExpectedToken[void, L](kind: etokRegular, hasLex: true, lex: lex)
@@ -84,17 +97,20 @@ func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
 
 
 func makeToken*[C, L, I](cat: C, lex: L): Token[C, L, I] =
-  Token[C, L, I](cat: cat, lex: lex)
+  Token[C, L, I](kind: etokRegular, cat: cat, lex: lex)
 
 func makeTokenNoInfo*[C, L](cat: C, lex: L): Token[C, L, void] =
-  Token[C, L, void](cat: cat, lex: lex)
+  Token[C, L, void](kind: etokRegular, cat: cat, lex: lex)
+
+func makeTokenNoCat*[L, I](lex: L): Token[NoCategory, L, I] =
+  Token[NoCategory, L, I](kind: etokRegular, lex: lex, cat: catNoCategory)
 
 func makeTokens*[C, L](cats: seq[C]): seq[Token[C, L, void]] =
   cats.mapIt(Token[C, L, void](cat: it))
 
 func makeTokens*(lexemes: seq[string]
                 ): seq[Token[NoCategory, string, void]] =
-  lexemes.mapIt(Token[NoCategory, string, void](lex: it))
+  lexemes.mapIt(makeTokenNoCat[string, void](it))
 
 
 #==============================  Accessors  ==============================#
