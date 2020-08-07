@@ -33,6 +33,10 @@ type
     info*: Info ## Additional information in token. It is OPTIONAL and
                 ## never used in parsing.
 
+  ETokKind* = enum
+    etokRegular
+    etokEOF
+
   ExpectedToken*[C, L] = object
     ## Description of token to expect during parsing. In order for
     ## input token to match category MUST be identical (equality
@@ -40,11 +44,17 @@ type
     ## match.
     # NOTE token comparison is done using simple equality - more
     # complex relations are not supported - they should be encoded in
-    cat*: C ## Expected token category
-    case hasLex*: bool ## Whether or not lexeme value should be considered
-      of true:
-        lex*: L ## Expected lexeme value
-      of false:
+    # lexeme or category comparison.
+    case kind*: ETokKind
+      of etokRegular:
+        cat*: C ## Expected token category
+        case hasLex*: bool ## Whether or not lexeme value should be
+                           ## considered
+          of true:
+            lex*: L ## Expected lexeme value
+          of false:
+            nil
+      of etokEOF:
         nil
 
   NoCategory* = enum
@@ -53,13 +63,13 @@ type
 #============================  Constructors  =============================#
 
 func makeExpToken*[C, L](category: C, lexeme: L): ExpectedToken[C, L] =
-  ExpectedToken[C, L](cat: category, lex: lexeme, hasLex: true)
+  ExpectedToken[C, L](kind: etokRegular, cat: category, lex: lexeme, hasLex: true)
 
 func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
-  ExpectedToken[C, L](cat: category, hasLex: false)
+  ExpectedToken[C, L](kind: etokRegular, cat: category, hasLex: false)
 
 func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
-  ExpectedToken[void, L](hasLex: true, lex: lex)
+  ExpectedToken[void, L](kind: etokRegular, hasLex: true, lex: lex)
 
 func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
   ## Return true if token `tok` matches with expected token `exp`
