@@ -145,7 +145,7 @@ func complete[C, L, I](state: var State,
   let item = state[i][j]
   for oldItem in state[item.startPos]:
     let next = gr.nextSymbol(oldItem)
-    if next.isNone() or next.isTerm():
+    if next.isNone() or next.get().isTerm:
       discard
     else:
       let sym = next.get()

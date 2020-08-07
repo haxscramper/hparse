@@ -581,17 +581,30 @@ type
     rules: seq[Item]
     tokMap: TokLookup[C, L]
 
-  RuleLookup*[C, L] = ItemLookup[C, L, RuleId]
-
 #=============================  Predicates  ==============================#
 
 #==============================  Accessors  ==============================#
+
 
 func getItem*[C, L, I, Item](
   rlookup: ItemLookup[C, L, Item], tok: Token[C, L, I]): Item =
   ## Get single rule from lookup table. Raise exception on rule
   ## conflict.
-  rlookup.rules[rlookup.tokMap.getAlt(tok)]
+  let idx: int = rlookup.tokMap.getAlt(tok)
+  # func getElemByIdx*[T](s: seq[T], i: int): T = s[i]
+  static:
+    # let s: seq[Item] = rlookup.rules
+    assert (idx is int) and (rlookup.rules is seq[Item])
+    assert system.`[]`(rlookup.rules, idx) is Item
+      # $typeof(rlookup.rules) & " " & $typeof(rlookup.rules[idx])
+
+  return system.`[]`(rlookup.rules, idx)
+  # static:
+  #   echo typeof(rlookup.rules)
+  #   echo typeof(rlookup.tokMap.getAlt(tok))
+  #   echo typeof(rlookup.rules[idx])
+
+  # rlookup.rules[rlookup.tokMap.getAlt(tok)]
 
 func `[]`*[C, L, I, Item](
   lookup: ItemLookup[C, L, Item],
@@ -607,27 +620,15 @@ func addItem*[C, L, Item](
     # debugecho tok.exprRepr(), " -> ", ruleId.exprRepr(), " id: ", idx
     rl.tokMap.addAlt(tok, idx, canconflict = canconflict)
 
-
 iterator pairs*[C, L, Item](il: ItemLookup[C, L, Item]
                            ): (ExpectedToken[C, L], Item) =
   for key, idx in il.tokMap:
     yield (key, il.rules[idx])
 
 #============================  Constructors  =============================#
-func initRuleLookup*[C, L](): RuleLookup[C, L] =
-  RuleLookup[C, L](tokMap: initTokLookup[C, L]())
-
 func initItemLookup*[C, L, Item](): ItemLookup[C, L, Item] =
   ItemLookup[C, L, Item](tokMap: initTokLookup[C, L]())
 
-func initRuleLookup*[C, L](
-  first: TokSet[C, L],
-  ruleId: RuleId,
-  canconflict: bool = false): RuleLookup[C, L] =
-  ## Create new rule lookup table
-  result = initRuleLookup[C, L]()
-  result.addRule(first, ruleId, canconflict = canconflict)
-  # raiseAssert("#[ IMPLEMENT ]#")
 
 #========================  Other implementation  =========================#
 

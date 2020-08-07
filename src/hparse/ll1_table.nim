@@ -14,7 +14,30 @@ import bnf_grammars, grammars, parse_helpers, parse_tree, token,
 #===========================  Type definition  ===========================#
 
 type
+  RuleLookup*[C, L] = ItemLookup[C, L, RuleId]
   LL1Table*[C, L] = Table[BnfNTerm, RuleLookup[C, L]]
+
+func addRule*[C, L](
+  rl: var RuleLookup[C, L], first: TokSet[C, L],
+  ruleId: RuleId, canconflict: bool = false): void =
+  rl.addItem(first, ruleId, canconflict)
+
+func getRule*[C, L, I](
+  rlookup: RuleLookup[C, L], tok: Token[C, L, I]): RuleId =
+  let tmp: RuleId = rlookup.getItem(tok)
+
+func initRuleLookup*[C, L](): RuleLookup[C, L] =
+  initItemLookup[C, L, RuleId]()
+
+func initRuleLookup*[C, L](
+  first: TokSet[C, L],
+  ruleId: RuleId,
+  canconflict: bool = false): RuleLookup[C, L] =
+  ## Create new rule lookup table
+  result = initRuleLookup[C, L]()
+  result.addItem(first, ruleId, canconflict = canconflict)
+  # raiseAssert("#[ IMPLEMENT ]#")
+
 
 #==============================  Accessors  ==============================#
 
