@@ -639,6 +639,7 @@ type
     nextPos*: int
 
   GItemSet* = object
+    id*: int
     gitems*: seq[GItem]
 
   GItemSets* = seq[GItemSet]
@@ -684,7 +685,7 @@ proc printItems*[C, L](gr: BnfGrammar[C, L],
     echo fmt("   === {idx:^3} ===   ")
     for item in stateset:
       if (item.nextPos == gr.ruleBody(item.ruleId).len) or (not onlyFull):
-        var buf = fmt("{item.ruleId.exprRepr():<12}") & " ->"
+        var buf = item.ruleId.exprRepr().termAlignLeft(12) & " ->"
         for idx, sym in gr.ruleBody(item.ruleId):
           if idx == item.nextPos:
             buf &= " •"
@@ -695,9 +696,10 @@ proc printItems*[C, L](gr: BnfGrammar[C, L],
           # else:
           #   buf &= " " & sym.nterm
 
+        buf = termAlignLeft(buf, 60)
         if item.nextPos == gr.ruleBody(item.ruleId).len:
-          buf = fmt("{buf:<60} \e[4m#\e[24m ({item.startPos})")
+          buf = fmt("{buf} \e[4m#\e[24m ({item.startPos})")
         else:
-          buf = fmt("{buf:<60}   ({item.startPos})")
+          buf = fmt("{buf}   ({item.startPos})")
 
         echo buf

@@ -28,9 +28,10 @@ type
 
   LRSets* = seq[GItemSet]
 
-  LRGotoTable* = object
+  LRGotoTable*[C, L] = object
+    statecount: int
     # IDEA REVIEW add '2d table' data type for handing things like that
-    table: Table[StateId, Table[BnfNterm, StateId]]
+    table: Table[StateId, Table[FlatBnf[C, L], StateId]]
 
   LRStack*[C, L, I] = seq[tuple[state: StateId, tree: ParseTree[C, L, I]]]
 
@@ -43,8 +44,8 @@ func `[]`[C, L, I](action: LRActionTable[C, L],
                    state: StateId, tok: Token[C, L, I]): LRAction =
   action.table[state][tok]
 
-func `[]`(goto: LRGotoTable, state: StateId, nterm: BnfNterm): StateId =
-  goto.table[state][nterm]
+func `[]`[C, L](goto: LRGotoTable[C, L], state: StateId, nterm: BnfNterm): StateId =
+  goto.table[state][FlatBnf[C, L](isTerm: false, nterm: nterm)]
 
 #===============================  Parser  ================================#
 
@@ -52,7 +53,7 @@ type
   SLRParser*[C, L] = object
     grammar: BnfGrammar[C, L]
     action: LRActionTable[C, L]
-    goto: LRGotoTable
+    goto: LRGotoTable[C, L]
 
 func addMain*[C, L](grammar: BnfGrammar[C, L]): BnfGrammar[C, L] =
   result = grammar
@@ -84,17 +85,26 @@ func makeClosure*[C, L](grammar: BnfGrammar[C, L],
     if size == result.len:
       break
 
-func getGoto*[C, L](gotoNow: var LRGotoTable,
+func getGoto*[C, L](grammar: BnfGrammar[C, L],
                     itemset: GItemSet,
-                    sym: FlatBnf[C, L]): tuple[
-                      isNew: bool, gset: GItemSet] =
-  discard
+                    sym: FlatBnf[C, L]): GItemSet =
+
+  for item in itemset:
+    let next = grammar.nextSymbol(item)
+    if next.isSome() and next.get() == sym:
+      result.add item.withIt do:
+        inc it.nextPos
+        # result.add next.get().withIt do:
+        #   inc it.nextPos
+
+  return grammar.makeClosure(result)
+
 
 func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
-  goto: LRGotoTable, gitems: GItemSets] =
+  goto: LRGotoTable[C, L], gitems: GItemSets] =
   var
     gitems = @[ makeClosure(grammar, @[ ruleId(grammar.start, 0) ]) ]
-    goto: LRGotoTable
+    goto: LRGotoTable[C, L]
 
   let grSymbols = toHashSet: collect(newSeq):
     for ruleid, prod in grammar.iterprods():
@@ -104,10 +114,14 @@ func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
   while true:
     let size = gitems.len
 
-    for itemset in gitems:
+    var idx = 0
+    while idx < gitems.len:
+      let itemset = gitems[idx]
+      inc idx
+
       for sym in grSymbols:
-        let (isNew, gset) = goto.getGoto(itemset, sym)
-        if isNew and gset.len > 0:
+        let gset = grammar.getGoto(itemset, sym)
+        if gset.len > 0 and gset notin gitems:
           gitems.add gset
 
     if size == gitems.len:
@@ -116,7 +130,7 @@ func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
   result.gitems = gitems
 
 func makeAction*[C, L](grammar: BnfGrammar[C, L],
-                       goto: LRGotoTable,
+                       goto: LRGotoTable[C, L],
                        gitems: GItemSets): LRActionTable[C, L] =
   discard
 
@@ -138,7 +152,7 @@ proc parse*[C, L, I](
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
   var
     curr: Token[C, L, I] = toks.next()
-    stack: LRStack[C, L, I]
+    stack: LRStack[C, L, I] = @[(StateId(0), newTree[C, L, I](@[]))]
 
   while true:
     let

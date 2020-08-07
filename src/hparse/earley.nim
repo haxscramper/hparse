@@ -9,7 +9,7 @@ type
     ruleId: RuleId
     finish: int
 
-  State = GItemSets # seq[GItemSet]
+  State = seq[GItemSet]
   Chart = seq[seq[SItemId]]
   NullSet = object
     nulls: HashSet[BnfNterm]
