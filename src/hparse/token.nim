@@ -541,7 +541,7 @@ func exprRepr*[C, L](exp: ExpectedToken[C, L],
                      conf: GrammarPrintConf = defaultGrammarPrintConf
                     ): string =
   when C is NoCategory:
-    fmt("{exp.lex}").wrap(conf.termWrap)
+    fmt("{exp.lex}").toGreen(conf.colored).wrap(conf.termWrap)
   else:
     if exp.hasLex:
       fmt("({exp.cat} '{exp.lex}')")

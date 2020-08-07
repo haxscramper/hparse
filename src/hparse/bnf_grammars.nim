@@ -32,7 +32,7 @@ type
 
   FlatBnf*[C, L] = object
     action*: TreeAct
-    case isTerm*: bool
+    case isTerm*: bool # REFACTOR rename to `isToken`
       of false:
         nterm*: BnfNterm
       of true:
@@ -598,7 +598,7 @@ func `[]`*[C, L, I, Item](
 
 func addItem*[C, L, Item](
   rl: var ItemLookup[C, L, Item], first: TokSet[C, L],
-  ruleId: RuleId, canconflict: bool = false): void =
+  ruleId: Item, canconflict: bool = false): void =
   ## Add new rule to lookup table
   let idx = rl.rules.len
   rl.rules.add ruleId
@@ -677,29 +677,43 @@ func append*(itemset: var GItemSet, rule: RuleId): void =
 func add*(itemset: var GItemSet, item: GItem): void =
   itemset.gitems.add item
 
+func exprRepr*[C, L](stateset: GItemSet,
+                     gr: BnfGrammar[C, L],
+                     conf: GrammarPrintConf = defaultGrammarPrintConf,
+                     onlyFull: bool = false,
+                     asEarley: bool = false): string =
 
-proc printItems*[C, L](gr: BnfGrammar[C, L],
-                      state: GItemSets, onlyFull: bool = false): void =
-  echo "\e[31mSTATE :\e[39m"
-  for idx, stateset in state:
-    echo fmt("   === {idx:^3} ===   ")
-    for item in stateset:
-      if (item.nextPos == gr.ruleBody(item.ruleId).len) or (not onlyFull):
-        var buf = item.ruleId.exprRepr().termAlignLeft(12) & " ->"
-        for idx, sym in gr.ruleBody(item.ruleId):
-          if idx == item.nextPos:
-            buf &= " •"
+  var resbuf: seq[string]
+  for item in stateset:
+    if (item.nextPos == gr.ruleBody(item.ruleId).len) or (not onlyFull):
+      var buf = item.ruleId.exprRepr(conf.normalizeNterms
+          ).termAlignLeft(12) & " ->"
+      for idx, sym in gr.ruleBody(item.ruleId):
+        if idx == item.nextPos:
+          buf &= " ⦿".toMagenta(conf.colored) & sym.exprRepr(conf)
+        else:
+          buf &= " " & sym.exprRepr(conf)
 
-          buf &= " " & sym.exprRepr()
-          # if sym.isTerm:
-          #   buf &= " " & sym.terminal.lex
-          # else:
-          #   buf &= " " & sym.nterm
+        # buf &= " " &
 
+      if asEarley:
         buf = termAlignLeft(buf, 60)
         if item.nextPos == gr.ruleBody(item.ruleId).len:
           buf = fmt("{buf} \e[4m#\e[24m ({item.startPos})")
         else:
           buf = fmt("{buf}   ({item.startPos})")
+      else:
+        if item.nextPos == gr.ruleBody(item.ruleId).len:
+          buf = buf & "⦿".toMagenta(conf.colored)
 
-        echo buf
+      resbuf.add buf
+
+  return resbuf.join("\n")
+
+
+proc printItems*[C, L](gr: BnfGrammar[C, L],
+                       state: GItemSets, onlyFull: bool = false): void =
+  echo "\e[31mSTATE :\e[39m"
+  for idx, stateset in state:
+    echo fmt("   === {idx:^3} ===   ")
+    echo stateset.exprRepr(gr)

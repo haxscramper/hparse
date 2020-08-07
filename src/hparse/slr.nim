@@ -1,7 +1,8 @@
 import strutils, strformat, sequtils, sugar, sets, options
 import hmisc/helpers
 
-import parse_tree, token, lexer, bnf_grammars, grammars
+import parse_tree, token, lexer, bnf_grammars, grammars, bnf_algo,
+       parse_primitives
 
 
 type
@@ -44,8 +45,53 @@ func `[]`[C, L, I](action: LRActionTable[C, L],
                    state: StateId, tok: Token[C, L, I]): LRAction =
   action.table[state][tok]
 
-func `[]`[C, L](goto: LRGotoTable[C, L], state: StateId, nterm: BnfNterm): StateId =
+func `[]`[C, L](goto: LRGotoTable[C, L],
+                state: StateId, nterm: BnfNterm): StateId =
   goto.table[state][FlatBnf[C, L](isTerm: false, nterm: nterm)]
+
+func `[]`[C, L](goto: LRGotoTable[C, L],
+                state: StateId, tok: ExpectedToken[C, L]): StateId =
+  let key = FlatBnf[C, L](isTerm: true, tok: tok)
+  try:
+    return goto.table[state][key]
+  except KeyError:
+    if state notin goto.table:
+      raise newException(KeyError, &"No values for state {state.int}")
+    else:
+      raise newException(KeyError,
+        &"No transitions for token {tok.exprRepr()} in " &
+        &"state {state.int} (key: {key})")
+
+
+func `[]`[C, L](goto: LRGotoTable[C, L],
+                state: StateId,
+                sym: FlatBnf[C, L]): StateId =
+  goto.table[state][sym.withIt do: it.action = taDefault]
+#                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#                   |
+#                   Cursed code detected
+
+func `[]=`[C, L](goto: var LRGotoTable[C, L],
+                 accs: (StateId, FlatBnf[C, L]),
+                 state: StateId): void =
+  let key = accs[1].withIt do:
+    it.action = taDefault
+
+  # debugecho key
+  if accs[0] notin goto.table:
+    goto.table[accs[0]] = {key : state}.toTable()
+  else:
+    goto.table[accs[0]][key] = state
+
+func `[]=`[C, L](actionTbl: var LRActionTable[C, L],
+                 state: StateId,
+                 tok: ExpectedToken[C, L],
+                 action: LRAction): void =
+  if state notin actionTbl.table:
+    actionTbl.table[state] = initItemLookup[C, L, LRAction]()
+
+  actionTbl.table[state].addItem(makeTokSet(tok), action)
+
 
 #===============================  Parser  ================================#
 
@@ -116,29 +162,56 @@ func makeItemsets*[C, L](grammar: BnfGrammar[C, L]): tuple[
 
     var idx = 0
     while idx < gitems.len:
-      let itemset = gitems[idx]
+      let
+        itemset = gitems[idx]
+        setid = idx
+
       inc idx
 
       for sym in grSymbols:
         let gset = grammar.getGoto(itemset, sym)
         if gset.len > 0 and gset notin gitems:
           gitems.add gset
+          goto[(StateId(setid), sym)] = StateId(gitems.len)
+          # debugecho sym
+          debugecho &"Goto {setid}, {sym.exprRepr()} -> {goto[StateId(setid), sym].int}"
+          debugecho gset.exprRepr(grammar)
+          # debugecho "\e[41m*=========\e[49m  eee  \e[41m==========*\e[49m"
 
     if size == gitems.len:
       break
 
   result.gitems = gitems
+  result.goto = goto
 
 func makeAction*[C, L](grammar: BnfGrammar[C, L],
                        goto: LRGotoTable[C, L],
                        gitems: GItemSets): LRActionTable[C, L] =
-  discard
+  let (_, follow, _) = grammar.getSets()
+  for gsetid, gset in gitems:
+    for item in gset:
+      let next = grammar.nextSymbol(item)
+      if next.isNone(): # `A -> a•`
+        for tok in follow[item.ruleId.head]:
+          result[StateId(gsetid), tok] = LRAction(
+            kind: laReduce,
+            reduce: item.ruleId
+          )
+      else: # `A -> αa•β`
+        let sym = next.get()
+        if sym.isTerm:
+          # debugecho gsetid, " ", sym.tok.exprRepr()
+          # debugecho sym
+          result[StateId(gsetid), sym.tok] = LRAction(
+            kind: laShift,
+            state: goto[StateId(gsetid), sym.tok]
+          )
 
 func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
   result.grammar = grammar.toBNF().addMain()
   let (goto, gitems) = result.grammar.makeItemsets()
-  {.noSideEffect.}:
-    printItems(result.grammar, gitems)
+  # {.noSideEffect.}:
+  #   printItems(result.grammar, gitems)
 
   result.goto = goto
   result.action = result.grammar.makeAction(goto, gitems)
