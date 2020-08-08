@@ -30,12 +30,6 @@ func makeInitCalls*[L](lex: LexSet[L]): NimNode =
     nnkExprEqExpr.newTree(ident "hasAll", lex.getHasAll().makeInitCalls()),
     nnkExprEqExpr.newTree(ident "lexemes", lex.getLexemes().makeInitCalls()))
 
-func makeIds[C, L](): tuple[cId, lId, iId: NimNode] =
-  (
-    cId: ident($(typeof C)),
-    lId: ident($(typeof L)),
-    iId: ident("I")
-  )
 
 template doIt(s, action: untyped): untyped =
   ## Execute action for each element in sequence, return original
@@ -188,12 +182,6 @@ proc computeGrammar*[C, L](g: Grammar[C, L]
     result.rules.add CompRule[C, L](nterm: rule.nterm, patts: compPatt)
 
   result.sets = sets
-
-proc makeSetLiteral[T](s: set[T]): NimNode =
-  ## Create new set literal
-  result = nnkCurly.newTree()
-  for elem in s:
-    result.add ident($elem)
 
 proc makeSetLiteral*[C, L](s: TokSet[C, L]): NimNode =
   makeInitCalls(s)

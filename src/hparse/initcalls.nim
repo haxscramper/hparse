@@ -1,11 +1,29 @@
-import macros, tables, sets, typetraits
+import macros, tables, sets, typetraits, sequtils
 
 type
-  NimType = object
+  NType = object
     head*: string
-    genParams*: seq[NimType]
+    genParams*: seq[NType]
 
-func toNimNode(ntype: NimType): NimNode =
+  NVarDeclKind* = enum
+    nvdVar
+    nvdConst
+    nvdLet
+
+  NIdentDefs* = object
+    varname: string
+    kind: NVarDeclKind
+    vtype: NType
+
+
+func mkNType*(name: string, gparams: seq[string]): NType =
+  NType(head: name, genParams: gparams.mapIt(mkNType(it, @[])))
+
+func mkNType*(name: string, gparams: openarray[NType]): NType =
+  NType(head: name, genParams: toSeq(gparams))
+
+
+func toNimNode*(ntype: NType): NimNode =
   if ntype.genParams.len == 0:
     return ident(ntype.head)
   else:
@@ -13,7 +31,35 @@ func toNimNode(ntype: NimType): NimNode =
     for param in ntype.genParams:
       result.add param.toNimNode()
 
-func toNimTypeAst*[T](): NimType =
+func mkVarDecl*(name: string, vtype: NType,
+                kind: NVarDeclKind = nvdLet): NIdentDefs =
+  NIdentDefs(varname: name, kind: kind, vtype: vtype)
+
+func toFormalParam*(nident: NIdentDefs): NimNode =
+  let typespec =
+    case nident.kind:
+      of nvdVar: newTree(nnkVarTy, nident.vtype.toNimNode())
+      of nvdLet: nident.vtype.toNimNode()
+      of nvdConst: newTree(nnkConstTy, nident.vtype.toNimNode())
+
+  nnkIdentDefs.newTree(
+    newIdentNode(nident.varname),
+    typespec,
+    newEmptyNode()
+  )
+
+func mkVarDeclNode*(name: string, vtype: NType,
+                    kind: NVarDeclKind = nvdLet): NimNode =
+  mkVarDecl(name, vtype, kind).toFormalParam()
+
+
+func mkNTypeNode*(name: string, gparams: seq[string]): NimNode =
+  mkNType(name, gparams).toNimNode()
+
+func mkNTypeNode*(name: string, gparams: varargs[NType]): NimNode =
+  mkNType(name, gparams).toNimNode()
+
+func toNTypeAst*[T](): NType =
   let str = $typeof(T)
   let expr = parseExpr(str)
 
