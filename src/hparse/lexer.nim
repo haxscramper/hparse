@@ -26,28 +26,40 @@ type
     # buffer)
     matchers*: seq[Matcher[Tok]]
 
-  CbProc*[Tok] = proc(tok: Tok, curPos: int)
+  CbProc*[Tok] = proc(tok: Tok, currPos: int)
 
   TokStream*[Tok] = object
     ## Buffer for tokens. Modeled after `std/streams` implementation
     nextTokCb: CbProc[Tok]
-    curPos: int ## Current position in buffer
+    currPos: int ## Current position in buffer
     buffer: seq[Tok] ## Token buffer
     newTok: proc(): tuple[stop: bool, tok: Tok] ## Callback to get new
     ## tokens. To indicate final token return `stop = true`
     atEnd: bool
 
+func absPos*[Tok](ts: TokStream[Tok]): int =
+  ## Absolute current position in token stream
+  ts.currPos
+
+func currpos*[Tok](ts: TokStream[Tok]): int =
+  ## Current position in token stream
+  ts.currPos
+
+func revertTo*[Tok](ts: var TokStream[Tok], pos: int): void =
+  ## Revert to position `pos`
+  ts.currPos = pos
+
 proc next*[Tok](ts: var TokStream[Tok]): Tok =
   ## Create single token by either parsing new data or returning from
   ## buffer
-  if ts.curPos < ts.buffer.len - 1:
-    inc ts.curPos
-    if ts.nextTokCb != nil: ts.nextTokCb(ts.buffer[ts.curPos], ts.curPos)
-    return ts.buffer[ts.curPos]
+  if ts.currPos < ts.buffer.len - 1:
+    inc ts.currPos
+    if ts.nextTokCb != nil: ts.nextTokCb(ts.buffer[ts.currPos], ts.currPos)
+    return ts.buffer[ts.currPos]
   else:
     if ts.atEnd:
       raiseAssert("Cannot read from finished token stream. " &
-      & "Current position: {ts.curPos}, buffer size: {ts.buffer.len}")
+      & "Current position: {ts.currPos}, buffer size: {ts.buffer.len}")
 
     else:
       # Assuming _if_ token stream not atEnd _then_ it can read at
@@ -57,8 +69,8 @@ proc next*[Tok](ts: var TokStream[Tok]): Tok =
         ts.atEnd = true
 
       ts.buffer.add tok
-      inc ts.curPos
-      if ts.nextTokCb != nil: ts.nextTokCb(tok, ts.curPos)
+      inc ts.currPos
+      if ts.nextTokCb != nil: ts.nextTokCb(tok, ts.currPos)
       return tok
 
 func makeStream*[Tok](
@@ -71,7 +83,7 @@ func makeStream*[Tok](
     buffer: tokens,
     newTok: proc(): auto = (stop: true, tok: Tok()),
     atEnd: true,
-    curPos: -1,
+    currPos: -1,
     nextTokCb: nextTokCb
   )
 
@@ -79,10 +91,10 @@ func getBuffer*[Tok](toks: TokStream[Tok]): seq[Tok] =
   toks.buffer
 
 func finished*[Tok](toks: TokStream[Tok]): bool =
-  toks.atEnd and toks.curPos == toks.buffer.len - 1
+  toks.atEnd and toks.currPos == toks.buffer.len - 1
 
 proc move*[Tok](ts: var TokStream[Tok], shift: int = -1): void =
-  ts.curPos = ts.curPos + shift
+  ts.currPos = ts.currPos + shift
 
 proc peek*[Tok](ts: var TokStream[Tok]): Tok =
   ## Get next token from token stream without changing position
@@ -105,4 +117,4 @@ proc reset*[Tok](ts: var TokStream[Tok]): Tok =
   # REVIEW why return anything?
   ts.buffer = @[]
   ts.atEnd = false
-  ts.curPos = 0
+  ts.currPos = 0

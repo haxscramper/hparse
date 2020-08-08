@@ -16,6 +16,19 @@ type
     ## has been attempted and failed. `some` - parsing succeded,
     ## return immediately
 
+func contains*[C, L, I](cache: ParseCache[C, L, I],
+                        idpos: (Hash, int)): bool =
+  idpos in cache.table
+
+func `[]`*[C, L, I](cache: ParseCache[C, L, I],
+                    idpos: (Hash, int)): Option[ParseTree[C, L, I]] =
+  cache.table[idpos]
+
+func `[]=`*[C, L, I](cache: var ParseCache[C, L, I],
+                     idpos: (Hash, int),
+                     item: Option[ParseTree[C, L, I]]): void =
+  cache.table[idpos] = item
+
 func makeParseProcDef[C, L](name: string): NimNode =
   nnkProcDef.newTree(
     newIdentNode(name),
@@ -56,11 +69,16 @@ proc makeTermBlock[C, L](term: Patt[C, L]): NimNode =
     tokIdent = newLit(term.tok)
     tokType = ident "Tok"
     toksIdent = ident "toks"
+
+  let (c, l, i) = makeIds[C, L]()
+
   return quote do:
     let expected = `tokIdent`
     let tok = next(`toksIdent`)
-    assertToken(expected, tok)
-    newTree(tok)
+    if expected.matches(tok):
+      some(newTree(tok))
+    else:
+      none(ParseTree[`c`, `l`, `i`])
 
 
 proc makeNtoMTimesBlock[C, L](nterm: Patt[C, L],
@@ -196,18 +214,20 @@ proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode =
       makeNtoMTimesBlock(patt, 1, -1)
 
   let
-    resIdent = ident resName
-    toksIdent = ident "toks"
-    cId = ident($(typeof C))
-    lId = ident($(typeof L))
-    iId = ident("I")
+    resId = ident resName
+    toksId = ident "toks"
+    pattHashId = ident "pattHash"
+    pattHashLit = newLit(hash(patt))
+    cacheId = ident "cache"
+
+  let (cId, lId, iId) = makeIds[C, L]()
 
 
   let actAssgn =
     if patt.action != taDefault:
       let actLit = ident($patt.action)
       quote do:
-        `resIdent`.action = `actLit`
+        `resId`.get().action = `actLit`
     else:
       newEmptyNode()
 
@@ -218,11 +238,23 @@ proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode =
   return newStmtList(
     newCommentStmtNode(comment),
     quote do:
-      var `resIdent`: ParseTree[`cId`, `lId`, `iId`] = block:
-        `result`
+      let currpos = `toksId`.currpos()
+      var `resId`: Option[ParseTree[`cId`, `lId`, `iId`]] = block:
+        let idpos: (Hash, int) = (`pattHashLit`, `toksId`.absPos())
+        if idpos in `cacheId`:
+          `cacheId`[idpos]
+        else:
+          let tmp = block:
+            `result`
 
-      runTreeActions(`resIdent`)
-      `actAssgn`
+          `cacheId`[idpos] = tmp
+          tmp
+
+      if `resId`.isNone():
+        `toksId`.revertTo(currpos)
+      else:
+        runTreeActions(`resId`.get())
+        `actAssgn`
     )
 
 proc makeRuleParser[C, L](rule: Rule[C, L]): tuple[
@@ -238,11 +270,14 @@ proc makeRuleParser[C, L](rule: Rule[C, L]): tuple[
   var impl = makeParseProcDef[C, L](rule.nterm.makeParserName())
   impl[6] = quote do:
     `parseBody`
-    case `resIdent`.kind:
-      of ptkToken, ptkNTerm:
-        return newTree(name = `ntermNterm`, subnodes = @[`resIdent`])
-      of ptkList:
-        return newTree(name = `ntermNterm`, subnodes = `resIdent`.getSubnodes())
+    if `resIdent`.isSome():
+      case `resIdent`.get().kind:
+        of ptkToken, ptkNTerm:
+          return newTree(name = `ntermNterm`,
+                         subnodes = @[`resIdent`.get()])
+        of ptkList:
+          return newTree(name = `ntermNterm`,
+                         subnodes = `resIdent`.get().getSubnodes())
 
   return (decl: decl, impl: impl)
 

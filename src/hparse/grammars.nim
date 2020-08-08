@@ -37,6 +37,25 @@ type
     start*: NtermSym
     rules*: seq[Rule[C, L]]
 
+#==============================  Aux proc  ===============================#
+
+func hash*[C, L](p: Patt[C, L]): Hash =
+  var h: Hash = 0
+  h = h !& hash(p.action)
+
+  case p.kind:
+    of pkNterm:
+      h = h !& hash(p.nterm)
+    of pkTerm:
+      h = h !& hash(p.tok)
+    of pkAlternative, pkConcat:
+      for it in p.patts:
+        h = h !& hash(it)
+    of pkOptional, pkZeroOrMore, pkOneOrMore:
+      h = h !& hash(p.item[0])
+
+  result = !$h
+
 #=============================  Predicates  ==============================#
 
 func `==`*[C, L](lhs, rhs: Patt[C, L]): bool =
