@@ -41,7 +41,9 @@ func makeParseProcDef[C, L](name: string): NimNode =
       )
     ),
     nnkFormalParams.newTree(
-      mkNTypeNode("ParseTree", @[$(typeof C), $(typeof L), "I"]),
+      mkNTypeNode(
+        "Option",
+        mkNType("ParseTree", @[$(typeof C), $(typeof L), "I"])),
       mkVarDeclNode(
         "toks",
         mkNType("TokStream",
@@ -149,11 +151,13 @@ proc makeNtoMTimesBlock[C, L](nterm: Patt[C, L],
 
 proc makeNTermBlock[C, L](nterm: Patt[C, L]): NimNode =
   assert nterm.kind == pkNTerm
-  let
-    ntermIdent = ident(makeParserName(nterm.nterm))
-    toksIdent = ident "toks"
-  quote do:
-    `ntermIdent`(`toksIdent`)
+  # let
+  #   ntermIdent = ident(makeParserName(nterm.nterm))
+  #   toksIdent = ident "toks"
+  #   cacheId = ident "cache"
+  newCall(makeParserName(nterm.nterm), ident("toks"), ident("cache"))
+  # quote do:
+  #   `ntermIdent`(`toksIdent`, `cacheId`)
 
 
 proc makeAltBlock[C, L](alt: Patt[C, L]): NimNode =
@@ -162,20 +166,25 @@ proc makeAltBlock[C, L](alt: Patt[C, L]): NimNode =
   let
     foundOk = ident "foundOk"
     finalId = ident "finalRes"
+    altStr = newLit alt.exprRepr(
+      defaultGrammarPrintConf.withIt do: it.colored = false)
 
   let (c, l, i) = makeIds[C, L]()
 
   let branches: NimNode = newStmtList: collect(newSeq):
     for idx, patt in alt.patts:
       let
+        idxLit = newLit(idx)
         resname = "altTmp"
         resid = ident resname
         parseBlock = makeParseBlock(patt, resname)
       quote:
         if not `foundOk`:
+          # echo "Trying alternative ", `altStr`, " ", `idxLit`
           `finalId` = block:
             `parseblock`
             `resid`
+
           if `finalId`.isSome():
             `foundOk` = true
 
@@ -190,7 +199,7 @@ proc makeAltBlock[C, L](alt: Patt[C, L]): NimNode =
 
 proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
   assert nterm.kind == pkConcat
-  let okId = ident "parseOk"
+  let allOk = ident "parseOk"
   let (c, l, i) = makeIds[C, L]()
 
   let parseStmts = collect(newSeq):
@@ -202,12 +211,16 @@ proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
 
       quote:
         let `resid` = block:
-          if `okId`:
+          if `allOk`:
             `parseblock`
             `resid`
           else:
-            `okId` = false
             none(ParseTree[`c`, `l`, `i`])
+
+        if `resid`.isNone():
+          `allOk` = false
+
+          # `resid`
 
   let valueVars = nnkBracket.newTree(
     nterm.patts
@@ -216,11 +229,13 @@ proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
   )
 
   return (
-    @[ newVarStmt(okId, newLit(true)) ] & parseStmts & @[
+    @[ newVarStmt(allOk, newLit(true)) ] & parseStmts & @[
     quote do:
-      if `okId`:
+      if `allOk`:
         var buf: seq[ParseTree[`c`, `l`, `i`]]
-        for item in `valueVars`:
+        for idx, item in `valueVars`:
+          # echo idx
+          # echo item.get().treeRepr()
           buf.add item.get()
 
         some(newTree[`c`, `l`](buf))
@@ -272,10 +287,18 @@ proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode =
   return newStmtList(
     newCommentStmtNode(comment),
     quote do:
-      let currpos = `toksId`.currpos()
+      let currpos = `toksId`.absPos()
       var `resId`: Option[ParseTree[`cId`, `lId`, `iId`]] = block:
         let idpos: (Hash, int) = (`pattHashLit`, `toksId`.absPos())
+        # echo `toksId`.currpos()
         if idpos in `cacheId`:
+          # echo "Position ", idpos,
+          #   " known in cache as ", `cacheId`[idpos].isSome()
+          if `cacheId`[idpos].isSome():
+            let endpos = `cacheId`[idpos].get().finish
+            # echo "Succeded earlier, moving stream to ", endpos
+            `toksId`.revertTo(endpos)
+
           `cacheId`[idpos]
         else:
           let tmp = block:
@@ -286,7 +309,10 @@ proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode =
 
       if `resId`.isNone():
         `toksId`.revertTo(currpos)
+        # echo "Parse of ", `commentLit`, " from ", currpos, " failed"
       else:
+        `resId`.get().start = currpos
+        `resId`.get().finish = `toksId`.absPos()
         runTreeActions(`resId`.get())
         `actAssgn`
     )
@@ -307,11 +333,12 @@ proc makeRuleParser[C, L](rule: Rule[C, L]): tuple[
     if `resIdent`.isSome():
       case `resIdent`.get().kind:
         of ptkToken, ptkNTerm:
-          return newTree(name = `ntermNterm`,
-                         subnodes = @[`resIdent`.get()])
+          return some(
+            newTree(name = `ntermNterm`, subnodes = @[`resIdent`.get()]))
         of ptkList:
-          return newTree(name = `ntermNterm`,
-                         subnodes = `resIdent`.get().getSubnodes())
+          return some(
+            newTree(name = `ntermNterm`,
+                    subnodes = `resIdent`.get().getSubnodes()))
 
   return (decl: decl, impl: impl)
 
@@ -336,13 +363,13 @@ type
     startCb: proc(
       toks: var TokStream[Token[C, L, I]],
       cache: var ParseCache[C, L, I]
-    ): ParseTree[C, L, I]
+    ): Option[ParseTree[C, L, I]]
 
 func initLLStarParser*[C, L, I](
       cb: proc(
         toks: var TokStream[Token[C, L, I]],
         cache: var ParseCache[C, L, I]
-      ): ParseTree[C, L, I]
+      ): Option[ParseTree[C, L, I]]
     ): LLStarParser[C, L, I] =
   result.startCb = cb
 
@@ -351,7 +378,7 @@ proc parse*[C, L, I](
   parser: LLStarParser[C, L, I],
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
   var cache: ParseCache[C, L, I]
-  parser.startCb(toks, cache)
+  parser.startCb(toks, cache).get()
 
 template newLLStarParser*[C, L, I](
   body: typed,

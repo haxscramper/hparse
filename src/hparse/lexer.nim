@@ -39,15 +39,11 @@ type
 
 func absPos*[Tok](ts: TokStream[Tok]): int =
   ## Absolute current position in token stream
-  ts.currPos
-
-func currpos*[Tok](ts: TokStream[Tok]): int =
-  ## Current position in token stream
-  ts.currPos
+  ts.currPos + 1
 
 func revertTo*[Tok](ts: var TokStream[Tok], pos: int): void =
   ## Revert to position `pos`
-  ts.currPos = pos
+  ts.currPos = pos - 1
 
 proc next*[Tok](ts: var TokStream[Tok]): Tok =
   ## Create single token by either parsing new data or returning from

@@ -1,3 +1,22 @@
 * Grammar DSL construction [0/1]
 
 - [ ] Test mulitple rules with identical names
+
+* Pretty-printing
+
+- [ ] Generate railroad diagrams for ebnf patterns
+- [ ] Ensure all parsers store start/end positions in the parse tree
+
+* Code generation for parser
+
+** API
+
+- [ ] Make parser procedures ~{.noSideEffect.}~ - make ~fnext~ func
+  for parser in cases where no side effects is possible (lexing is
+  done from data in memory (string, sequence of tokens, another token
+  stream etc.))
+
+** Testing
+
+- [ ] Use ~LL(1)~ and ~LL(*)~ with macros - parse string at
+  compile-time.
