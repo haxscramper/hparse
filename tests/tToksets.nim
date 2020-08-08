@@ -70,11 +70,12 @@ suite "Token sets":
         B ::= "-"
         C ::= null
 
-      echo grm.exprRepr()
+      # echo grm.exprRepr()
       let (first, follow, nulls) = grm.getSets()
       assertAll:
         # "C0" in nulls
         "C" in nulls
+        first["B"].sameset @["-"]
         follow["C"].sameset @["*"]
         follow["B"].sameset @["*"]
         follow["C"].sameset follow["B"]

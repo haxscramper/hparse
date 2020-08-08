@@ -387,7 +387,7 @@ func toBNF*[C, L](
   rule: Rule[C, L],
   noAltFlatten: bool = false,
   renumerate: bool = false): seq[BnfRule[C, L]] =
-  debugecho rule.exprRepr()
+  # debugecho rule.exprRepr()
   let (top, newrules) = rule.patts.toBnf(rule.nterm, @[0])
   if noAltFlatten:
     block:

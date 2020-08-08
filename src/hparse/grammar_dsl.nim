@@ -237,7 +237,7 @@ proc generateGrammar*(body: NimNode): NimNode =
         newLit($rule[1]),
         rule[2].flattenPatt().toCalls())
 
-  echo result.toStrLit()
+  # echo result.toStrLit()
 
 
 macro initGrammarImpl*(body: untyped): untyped = generateGrammar(body)
