@@ -21,10 +21,10 @@ import unittest
 suite "LL(*) gen":
   test "test":
     initGrammarConst[NOCategory, string](grammar):
-      A ::= "(" & "0"
+      A ::= "(" | "0"
 
     let parser = newLLStarParser[NoCategory, string, void](grammar)
-    let tree = makeTokens(@["(", "0", ")"]).makeStream().withResIt:
+    let tree = makeTokens(@["0"]).makeStream().withResIt:
       parser.parse(it)
 
     echo tree.treeRepr()

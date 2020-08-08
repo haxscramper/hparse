@@ -159,19 +159,33 @@ proc makeNTermBlock[C, L](nterm: Patt[C, L]): NimNode =
 proc makeAltBlock[C, L](alt: Patt[C, L]): NimNode =
   ## Create code block for parsing alternative pattern
   assert alt.kind == pkAlternative
-  let branches = collect(newSeq):
+  let
+    foundOk = ident "foundOk"
+    finalId = ident "finalRes"
+
+  let (c, l, i) = makeIds[C, L]()
+
+  let branches: NimNode = newStmtList: collect(newSeq):
     for idx, patt in alt.patts:
       let
-        resName = &"patt{idx}res"
-        resIdent = ident resName
-        parseBlock = makeParseBlock(patt, resName)
+        resname = "altTmp"
+        resid = ident resname
+        parseBlock = makeParseBlock(patt, resname)
+      quote:
+        if not `foundOk`:
+          `finalId` = block:
+            `parseblock`
+            `resid`
+          if `finalId`.isSome():
+            `foundOk` = true
 
-      nnkOfBranch.newTree(
-        newLit(idx),
-        quote do:
-          `parseBlock`
-          `resIdent`
-      )
+  quote do:
+    var `finalId`: Option[ParseTree[`c`, `l`, `i`]]
+    var `foundOk`: bool = false
+    `branches`
+    `finalId`
+
+
 
 
 proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
@@ -201,7 +215,6 @@ proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
       .mapIt(ident &"patt{it[0]}res")
   )
 
-  # let tokIdent = ident "Tok"
   return (
     @[ newVarStmt(okId, newLit(true)) ] & parseStmts & @[
     quote do:
