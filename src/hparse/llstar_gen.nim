@@ -176,9 +176,24 @@ proc makeAltBlock[C, L](alt: Patt[C, L]): NimNode =
 
 proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
   assert nterm.kind == pkConcat
+  let okId = ident "parseOk"
+  let (c, l, i) = makeIds[C, L]()
+
   let parseStmts = collect(newSeq):
     for idx, patt in nterm.patts:
-      makeParseBlock(patt, &"patt{idx}res")
+      let
+        resname = &"patt{idx}res"
+        resid = ident resname
+        parseblock = makeParseBlock(patt, resname)
+
+      quote:
+        let `resid` = block:
+          if `okId`:
+            `parseblock`
+            `resid`
+          else:
+            `okId` = false
+            none(ParseTree[`c`, `l`, `i`])
 
   let valueVars = nnkBracket.newTree(
     nterm.patts
@@ -187,12 +202,17 @@ proc makeConcatBlock[C, L](nterm: Patt[C, L]): NimNode =
   )
 
   # let tokIdent = ident "Tok"
-  let
-    cId = ident($(typeof C))
-    lId = ident($(typeof L))
-  return (parseStmts & @[
+  return (
+    @[ newVarStmt(okId, newLit(true)) ] & parseStmts & @[
     quote do:
-      newTree[`cId`, `lId`](@`valueVars`)
+      if `okId`:
+        var buf: seq[ParseTree[`c`, `l`, `i`]]
+        for item in `valueVars`:
+          buf.add item.get()
+
+        some(newTree[`c`, `l`](buf))
+      else:
+        none(ParseTree[`c`, `l`, `i`])
   ]).newStmtList()
 
 proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode =
@@ -232,7 +252,8 @@ proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode =
       newEmptyNode()
 
   let
-    comment = patt.exprRepr(defaultGrammarPrintConf.withIt do: it.colored = false)
+    comment = patt.exprRepr(
+      defaultGrammarPrintConf.withIt do: it.colored = false)
     commentLit = newLit(comment)
 
   return newStmtList(

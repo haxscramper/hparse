@@ -8,7 +8,8 @@ import ../src/hparse/[
   bnf_grammars,
   llstar_gen,
   grammar_dsl,
-  lexer
+  lexer,
+  parse_primitives
 ]
 
 #===========================  implementation  ============================#
@@ -20,7 +21,7 @@ import unittest
 suite "LL(*) gen":
   test "test":
     initGrammarConst[NOCategory, string](grammar):
-      A ::= "("
+      A ::= "(" & "0"
 
     let parser = newLLStarParser[NoCategory, string, void](grammar)
     let tree = makeTokens(@["(", "0", ")"]).makeStream().withResIt:
