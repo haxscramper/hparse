@@ -115,7 +115,7 @@ func makeTokenNoCat*[L, I](lex: L, info: I): Token[NoCategory, L, I] =
     kind: etokRegular, lex: lex, cat: catNoCategory, info: info)
 
 func makeTokens*[C, L](cats: seq[C]): seq[Token[C, L, void]] =
-  cats.mapIt(Token[C, L, void](cat: it))
+  cats.mapIt(Token[C, L, void](kind: etokRegular, cat: it))
 
 func makeTokens*(lexemes: seq[string]
                 ): seq[Token[NoCategory, string, void]] =

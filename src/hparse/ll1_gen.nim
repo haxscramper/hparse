@@ -9,7 +9,10 @@ export helpers
 import hashes, tables, sets
 
 import lexer
-import parse_primitives, parser_common, parse_tree, parse_helpers, token
+import parse_primitives, parser_common, parse_tree, parse_helpers, token,
+       codegen_common
+
+export codegen_common
 import initcalls
 
 
@@ -233,9 +236,9 @@ proc makeAltBlock[C, L](alt: CompPatt[C, L], sets: NTermSets[C, L]): NimNode =
     for branch in branches & @[elseBody]:
       it.add branch
 
-proc makeParserName*(nterm: NTermSym): string =
-  ## Converter nonterminal name into parsing proc name
-  "parse" & nterm.capitalizeAscii()
+# proc makeParserName*(nterm: NTermSym): string =
+#   ## Converter nonterminal name into parsing proc name
+#   "parse" & nterm.capitalizeAscii()
 
 proc makeTermBlock[C, L](term: CompPatt[C, L]): NimNode =
   assert term.kind == pkTerm

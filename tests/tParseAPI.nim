@@ -52,9 +52,11 @@ suite "Parser generation tests":
       nterm: "A",
       subnodes: @[
         ParseTree[En, string, void](
-          kind: ptkToken, tok: Token[En, string, void](cat: en1)),
+          kind: ptkToken, tok: Token[En, string, void](kind: etokRegular,
+                                                       cat: en1)),
         ParseTree[En, string, void](
-          kind: ptkToken, tok: Token[En, string, void](cat: en2))
+          kind: ptkToken, tok: Token[En, string, void](kind: etokRegular,
+                                                       cat: en2))
       ]
     )
 

@@ -1,7 +1,7 @@
 import sugar, strutils, sequtils, strformat, algorithm
 import macros
 import hmisc/[helpers, hexceptions]
-import grammars
+import grammars, token
 
 #===========================  implementation  ============================#
 
@@ -239,6 +239,7 @@ proc generateGrammar*(body: NimNode): NimNode =
 
   # echo result.toStrLit()
 
+func tokMaker*[C, L](cat: C): Patt[C, L] = grammars.tok[C, L](cat)
 
 macro initGrammarImpl*(body: untyped): untyped = generateGrammar(body)
 
@@ -252,8 +253,7 @@ template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc null(): Patt[catT, lexT] = nullP[catT, lexT]()
 
   when not (catT is void):
-    proc tok(cat: catT): Patt[catT, lexT] =
-      grammars.tok[catT, lexT](cat)
+    proc tok(cat: catT): Patt[catT, lexT] = tokMaker[catT, lexT](cat)
 
 
 template initGrammar*[C, L](body: untyped): untyped =
