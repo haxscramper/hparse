@@ -1,9 +1,8 @@
 import sets, sequtils, hashes, tables, strutils, strformat, macros
 import hmisc/helpers
 import hmisc/algo/halgorithm
-import initcalls
 import parse_primitives
-import hmisc/types/colorstring
+import hmisc/types/[colorstring, initcalls]
 
 ## Parse tree contains actual token /values/ - concrete lexemes and
 ## additional information (whatever you deem necessary adding).

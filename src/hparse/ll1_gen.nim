@@ -1,6 +1,7 @@
 import macros, options, sugar
 import strformat, strutils, sequtils, algorithm
 import hmisc/helpers
+import hmisc/types/initcalls
 import sets
 import grammars
 
@@ -13,7 +14,6 @@ import parse_primitives, parser_common, parse_tree, parse_helpers, token,
        codegen_common
 
 export codegen_common
-import initcalls
 
 
 ## LL1 parser generator code
