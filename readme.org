@@ -1,0 +1,110 @@
+#+title: readme
+
+Collection of variout utilities related to parsing, ranging from
+statically typed wrapper on top of ~scanf~ to full parser generator
+(with support for EBNF notation, tree actions, template rules, and ast
+generation)
+
+* Small utilities
+
+** ~tscanf~
+
+** ~rx~ macro
+
+* Parser generator
+
+Parser generator focuses on *simplicity* and *ease of use*. Concrete
+implementation details of particular parser algorithms are hidden as
+much as possible - you can [fn::this is the WIP part, but the ultimate
+goal] easily swap parsing algorithms without altering your grammar at
+all.
+
+** Grammar description
+
+Grammar described using EBNF notation, with only exception being use
+of prefix notation - e.g. for zero-or-more you need to write ~*E~.
+
+Example of very simple grammar grammar:
+
+#+caption: repeated 'hello world' grammar
+#+begin_src nim
+  let grammar = initGrammar[NoCategory, string]:
+    A ::= *("hello" & "world")
+#+end_src
+
+More complex example (with result tree)
+
+#TODO generate tree
+
+#+caption: Nested list grammar
+#+begin_src nim
+  let grammar = initGrammar[NoCategory, string]:
+    List ::= !"[" & Elements & !"]"
+    Elements ::= Element & @*(@(!"," & Element))
+    Element ::= "i" | List
+#+end_src
+
+*** Nonterminals
+
+***
+
+** Tree actions & parse templates
+
+Result of parser generator is a =parse tree= - very representation of
+original source code and contains all helper symbols (punctition,
+brackets, precedense levels etc). All of this cruft is necessary to
+correctly recognize input sequence of tokens, but completely
+irrelevant afterwards - in nested list grammar only ~Elements~ are
+actually necessary, everything else can be thrown away immediately.
+*Tree actions* are intended for this exact purpose - dropping
+unnecessary parts of the parse tree, flattening out nested parts etc.
+Currently five types of actions are supported:
+
+- Drop ::
+
+** Token description
+
+* Development
+
+** State of development
+
+Parser generator is currently work-in-progress. All advertized
+features are implemented, but number of supported algorithms is
+lacking - fully supported is only backtracking LL(*). Codegen and
+table-driven ~LL(1)~ are partially supported (have some weird bugs).
+Some work has been done on adding ~SLR~ and ~Earley~ parser.
+
+Parser generator has relatively clean and documented internal API,
+designed to make implementation of new algorithms as simple as
+possible (lost of details are abstracted).
+
+** Unsolved problems
+
+Only recursive descent parsers can accept EBNF notation as-is. Every
+other one requires conversion from EBNF to BNF (implemented, tested).
+The problem is - this trasnformation changes shape of the parsed tree.
+For example ~A ::= *(E)~ is converted to ~A ::= E1~ and ~E1 ::= Ɛ | E
+E1~ - recursion is replaced with iteration.
+
+#TODO add grammar transformation example
+#TODO add parsed tree.
+
+#TODO IDEA add support for ~block~ sessions - code will be wrapped
+into ~block:~ (or alternative for other programming language).
+
+#+caption: Grammar
+#+begin_src nim
+exampleConstGrammar:
+  A ::= *("hello")
+
+let llRecParser = newLL1RecursiveParser(grammar)
+let llTableParser = newLL1TableParser(grammar) # TODO add overloaded constructor for example
+#+end_src
+
+#+begin_src nim
+echo "Recursive descent tree"
+echo ll1RecParser.parse(@["hello", "hello", "hello"]).treeRepr()
+
+echo "Table-driven parser tree"
+echo llTableParser.parse(@["hello", "hello", "hello"]).treeRepr()
+#+end_src
