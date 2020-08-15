@@ -251,3 +251,34 @@ suite "Grammar DSL API":
     let grammar = initGrammar[NoCategory, string]:
       A ::= "hello" & *(B) & "world"
       B ::= "!!"
+
+  test "{initGrammar} `prefCat.lex` for tokens":
+    type
+      Cat = enum
+        ctOne
+        ctTwo
+
+    # dumpTree:
+    #   {"A": andP(tok(ctOne, "hello"), tok(ctTwo, "world"))}
+
+    block: # Automatically infer prefix for token category
+      let grammar = initGrammar[Cat, string]:
+        A ::= "hello".one & "world".two
+
+      assertEq grammar, {
+        "A" : andP(
+          tok(ctOne, "hello"),
+          tok(ctTwo, "world")
+        )
+      }
+
+    block: # But don't just prepend it two all lowercase identifiers
+      let grammar = initGrammar[Cat, string]:
+        A ::= "hello".ctOne & "world".ctTwo
+
+      assertEq grammar, {
+        "A" : andP(
+          tok(ctOne, "hello"),
+          tok(ctTwo, "world")
+        )
+      }
