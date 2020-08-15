@@ -73,6 +73,11 @@ const
   patternSigils = ["*", "+", "?"]
 
 
+func toCatPrefix(str, pref: string): string =
+  if str.startsWith(pref):
+    str
+  else:
+    pref & str.capitalizeAscii()
 
 func newPattTree(prefixNode: NimNode, patt: PattTree): PattTree =
   let prefix = prefixNode.strVal()
@@ -109,7 +114,8 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
       if str[0].isUpperAscii():
         PattTree(kind: ptkNtermName, nterm: str)
       else:
-        PattTree(kind: ptkTokenKind, token: str)
+        PattTree(
+          kind: ptkTokenKind, token: str.toCatPrefix(conf.catPrefix))
     of nnkStrLit:
       PattTree(kind: ptkStrLiteral, strval: node.strVal())
     of nnkPar:
@@ -136,6 +142,7 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
       raiseCodeError(
         node, &"Unexpected node kind for `newPattTree` {node.kind}",
         "", 0)
+
 
 proc flattenPatt(node: NimNode, conf: GenConf): PattTree =
   # echo node.treeRepr()
@@ -179,15 +186,7 @@ proc flattenPatt(node: NimNode, conf: GenConf): PattTree =
       ])
     of nnkDotExpr:
       assertNodeIt(node[1], node[1].kind == nnkIdent, "Expected identifier")
-      let nodeStr =
-        block:
-          let str = node[1].strVal()
-          if str.startsWith(conf.catPrefix):
-            str
-          else:
-            conf.catPrefix & str.capitalizeAscii()
-
-      let catNode = node[1]
+      let nodeStr = node[1].strVal().toCatPrefix(conf.catPrefix)
       result = PattTree(
         kind: ptkTokenComposed,
         lexVal: node[0],
@@ -268,7 +267,7 @@ proc generateGrammar*(body: NimNode, catPrefix: string = ""): NimNode =
         )).toCalls())
 
   # echo result.treeRepr()
-  # echo result.toStrLit()
+  # echo result.toStrLit()        #
 
 func tokMaker*[C, L](cat: C): Patt[C, L] = grammars.tok[C, L](cat)
 

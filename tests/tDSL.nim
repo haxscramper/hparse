@@ -282,3 +282,12 @@ suite "Grammar DSL API":
           tok(ctTwo, "world")
         )
       }
+
+    block:
+      assertEq do:
+        initGrammar[Cat, string]:
+          A ::= one
+      do:
+        {
+          "A" : tok makeExpToken[Cat, string](ctOne)
+        }
