@@ -1,6 +1,7 @@
 import sugar, strutils, sequtils, strformat, macros
 
 import ../src/hparse, ../src/hparse/[ll1_gen, grammar_dsl]
+import ../src/hparse/nimrx
 
 #===========================  implementation  ============================#
 
@@ -33,3 +34,6 @@ suite "Compile-time parsing":
 
   test "test":
     parseTest("hello world")
+
+  test "RX macro":
+    echo rx"(and word word)"
