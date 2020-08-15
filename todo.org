@@ -18,5 +18,10 @@
 
 ** Testing
 
-- [ ] Use ~LL(1)~ and ~LL(*)~ with macros - parse string at
+- [X] Use ~LL(1)~ and ~LL(*)~ with macros - parse string at
   compile-time.
+
+* Documentation
+
+- [ ] Examples of parse output tree in readme
+- [ ]

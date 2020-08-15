@@ -28,6 +28,7 @@ macro tscanf*(input, pattNode: string): untyped =
   ##
   ## `ml` is a tuple. Types are inferred from pattern. User
   ## defined matchers are supported too.
+  # TODO DOC types of injected variables
   runnableExamples:
     proc matcher1(s: string, arg: var seq[string], start: int): int =
       arg = @["##", "$$"]

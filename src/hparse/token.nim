@@ -62,6 +62,8 @@ type
         nil
 
   NoCategory* = enum
+    ## Enum to describe token 'without' category - mostly used in
+    ## examples when parsing sequences string.
     catNoCategory
 
 #============================  Constructors  =============================#
@@ -76,6 +78,7 @@ func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
   ExpectedToken[C, L](kind: etokRegular, cat: category, hasLex: false)
 
 func makeExpNoCat*[L](l: L): ExpectedToken[NoCategory, L] =
+  ## Create expected token from lexeme, using `NoCategory` as category
   ExpectedToken[NoCategory, L](kind: etokRegular, hasLex: true, lex: l)
 
 func makeExpEOFToken*[C, L](): ExpectedToken[C, L] =
@@ -84,12 +87,12 @@ func makeExpEOFToken*[C, L](): ExpectedToken[C, L] =
 
 # func makeExpEOFToken*()
 
+# TODO remove
 func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
   ExpectedToken[void, L](kind: etokRegular, hasLex: true, lex: lex)
 
 func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
   ## Return true if token `tok` matches with expected token `exp`
-  # TODO IMPLEMENT
   # debugecho "Test if token matches"
   if tok.cat != exp.cat:
     false
@@ -101,24 +104,32 @@ func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
 
 
 func makeToken*[C, L, I](cat: C, lex: L): Token[C, L, I] =
+  ## Create regular token from category and lexeme
   Token[C, L, I](kind: etokRegular, cat: cat, lex: lex)
 
 func makeTokenNoInfo*[C, L](cat: C, lex: L): Token[C, L, void] =
+  ## Create regular token from category and lexeme. Use `void` for
+  ## information field.
   Token[C, L, void](kind: etokRegular, cat: cat, lex: lex)
 
 func makeTokenNoCatInfo*[L](lex: L): Token[NoCategory, L, void] =
+  ## Make token without category and `info` from lexeme
   Token[NoCategory, L, void](
     kind: etokRegular, lex: lex, cat: catNoCategory)
 
 func makeTokenNoCat*[L, I](lex: L, info: I): Token[NoCategory, L, I] =
+  ## Make token without category, using lexeme `lex` and info `info`
   Token[NoCategory, L, I](
     kind: etokRegular, lex: lex, cat: catNoCategory, info: info)
 
 func makeTokens*[C, L](cats: seq[C]): seq[Token[C, L, void]] =
+  ## Create sequence of regular tokens from sequence of token categories
   cats.mapIt(Token[C, L, void](kind: etokRegular, cat: it))
 
 func makeTokens*(lexemes: seq[string]
                 ): seq[Token[NoCategory, string, void]] =
+  ## Creat sequence of 'example' tokens from sequence of strings.
+  ## Mostly used for examples.
   lexemes.mapIt(makeTokenNoCatInfo[string](it))
 
 

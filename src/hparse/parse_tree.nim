@@ -141,28 +141,36 @@ func actions*[C, L, I](tree: ParseTree[C, L, I]): Table[int, TreeAct] =
 #   ParseTree[Tok](kind: ptkList, elements: toSeq(subtree))
 
 proc newTree*[C, L, I](tok: Token[C, L, I]): ParseTree[C, L, I] =
+  ## Create new tree from token
   ParseTree[C, L, I](kind: ptkToken, tok: tok)
 
 
 func tok*[C, L, I](tree: ParseTree[C, L, I]): Token[C, L, I] =
-  assert tree.kind == pkTerm
+  ## Get token from form parse tree of kind `ptkToken`
+  assert tree.kind == ptkToken
   return tree.tok
 
 func `[]`*[C, L, I](
   tree: ParseTree[C, L, I], idx: int): ParseTree[C, L, I] =
+  ## Get `idx`th subnode from tree
   tree.subnodes[idx]
 
 func `[]`*[C, L, I](
   tree: ParseTree[C, L, I],
   slice: HSlice[int, BackwardsIndex]): seq[ParseTree[C, L, I]] =
+  ## Get range of tree subnodes
   tree.subnodes[slice]
 
 func getSubnodes*[C, L, I](tree: ParseTree[C, L, I]): seq[ParseTree[C, L, I]] =
+  ## Get all subnodes for parse tree. NOTE: token tree returns empty
+  ## sequence - no exception is raised
   case tree.kind:
     of ptkNterm, ptkList: tree.subnodes
     of ptkToken: @[]
 
 func len*[C, L, I](tree: ParseTree[C, L, I]): int =
+  ## Get get number of subnodes for tree. NOTE: token tree returns `0`
+  ## - no exception is raised.
   case tree.kind:
     of ptkToken: 0
     of ptkNterm, ptkList: tree.subnodes.len
@@ -170,6 +178,7 @@ func len*[C, L, I](tree: ParseTree[C, L, I]): int =
 #========================  Accessors/predicates  =========================#
 
 func `isToken`*[C, L, I](tree: ParseTree[C, L, I]): bool =
+  ## Check if parse tree is token
   tree.kind == ptkToken
 
 #===========================  Pretty-printing  ===========================#
