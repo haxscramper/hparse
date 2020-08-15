@@ -44,7 +44,10 @@ macro rx*(body: string): untyped =
   var toks = tokenize(body.strVal()).makeStream()
   echo toks.exprRepr()
 
-  # initGrammarConst[NoCategory, string](grammar):
-  #   List = op
+  initGrammarConst[RxKind, string](grammar):
+    List ::= op & ident & *(Element) & cl
+    Element ::= List | ident | strlit | intlit
+
+  echo grammar.toGrammar().exprRepr()
 
   result = quote: 2

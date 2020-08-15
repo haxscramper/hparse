@@ -256,7 +256,15 @@ proc generateGrammar*(body: NimNode, catPrefix: string = ""): NimNode =
 
   result = nnkTableConstr.newTree()
   for rule in body:
-    assert rule.kind == nnkInfix and $rule[0] == "::="
+    assertNodeIt(rule, rule.kind == nnkInfix,
+                 "Expected infix <head> ::= <production>",
+                 &"Expression kind: {rule.kind}")
+
+    assertNodeIt(rule[0], $rule[0] == "::=",
+                 &"Invalid infix: {rule[0]}",
+                  "expected ::=")
+
+    # assert rule.kind == nnkInfix and $rule[0] == "::="
     if rule[2] == ident("null"):
       result.add newColonExpr(newLit($rule[1]), newCall("null"))
     else:
@@ -267,7 +275,7 @@ proc generateGrammar*(body: NimNode, catPrefix: string = ""): NimNode =
         )).toCalls())
 
   # echo result.treeRepr()
-  # echo result.toStrLit()        #
+  echo result.toStrLit()        #
 
 func tokMaker*[C, L](cat: C): Patt[C, L] = grammars.tok[C, L](cat)
 
