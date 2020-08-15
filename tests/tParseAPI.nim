@@ -142,8 +142,8 @@ suite "Compare parsers table vs codegen LL(1)":
     testparse(@["-", ":", ";", ":", ";", ":", ";"]):
       A ::= "-" & @*(@(":" & ";"))
 
-  # test "List DSL":
-  #   testparse(@["[", "i", ",", "i", ",", "i", ",", "i", "]"]):
-  #     List ::= !"[" & Elements & !"]"
-  #     Elements ::= Element & @*(@(!"," & Element))
-  #     Element ::= "i" | List
+  test "List DSL":
+    testparse(@["[", "i", ",", "i", ",", "i", ",", "i", "]"]):
+      List ::= !"[" & Elements & !"]"
+      Elements ::= Element & @*(@(!"," & Element))
+      Element ::= "i" | List

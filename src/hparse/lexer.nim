@@ -1,6 +1,6 @@
 # To support lexing in both compiled and interpreted environments as
 # well as at compile-time
-import regex, token
+import regex, token, options
 import streams, strformat, sequtils
 
 type
@@ -81,6 +81,13 @@ proc next*[Tok](ts: var TokStream[Tok]): Tok =
       if ts.nextTokCb != nil: ts.nextTokCb(tok, ts.currPos)
       return tok
 
+proc nextTry*[Tok](ts: var TokStream[Tok]): Option[Tok] =
+  if not (ts.currPos < ts.buffer.len - 1) and ts.atEnd:
+    none(Tok)
+  else:
+    some(ts.next())
+
+
 func makeStream*[Tok](
   tokens: seq[Tok], nextTokCb: CbProc[Tok] = nil): TokStream[Tok] =
   var tokens = tokens
@@ -128,5 +135,8 @@ proc reset*[Tok](ts: var TokStream[Tok]): Tok =
   ts.currPos = 0
 
 func exprRepr*[Tok](ts: TokStream[Tok]): string =
-  "@" & $ts.currPos & " [" &
-    ts.buffer.mapIt(it.exprRepr()).join(", ") & "]"
+  if ts.buffer.len < 4:
+    "@" & $ts.currPos & " [" &
+      ts.buffer.mapIt(it.exprRepr()).join(", ") & "]"
+  else:
+    ts.buffer.mapIt(it.exprRepr()).join("\n")

@@ -148,6 +148,15 @@ func tok*[C, L, I](tree: ParseTree[C, L, I]): Token[C, L, I] =
   assert tree.kind == pkTerm
   return tree.tok
 
+func `[]`*[C, L, I](
+  tree: ParseTree[C, L, I], idx: int): ParseTree[C, L, I] =
+  tree.subnodes[idx]
+
+func `[]`*[C, L, I](
+  tree: ParseTree[C, L, I],
+  slice: HSlice[int, BackwardsIndex]): seq[ParseTree[C, L, I]] =
+  tree.subnodes[slice]
+
 func getSubnodes*[C, L, I](tree: ParseTree[C, L, I]): seq[ParseTree[C, L, I]] =
   case tree.kind:
     of ptkNterm, ptkList: tree.subnodes
@@ -159,6 +168,9 @@ func len*[C, L, I](tree: ParseTree[C, L, I]): int =
     of ptkNterm, ptkList: tree.subnodes.len
 
 #========================  Accessors/predicates  =========================#
+
+func `isToken`*[C, L, I](tree: ParseTree[C, L, I]): bool =
+  tree.kind == ptkToken
 
 #===========================  Pretty-printing  ===========================#
 

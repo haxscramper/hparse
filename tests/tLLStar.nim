@@ -48,3 +48,35 @@ suite "LL(*) gen":
           parser.parse(it)
 
       echo tree.treeRepr()
+
+
+  test "List DSL":
+    initGrammarConst[NoCategory, string](grammar):
+      List ::= !"[" & Elements & !"]"
+      Elements ::= Element & @*(@(!"," & Element))
+      Element ::= "i" | List
+
+    var toks = @["[", "i", ",", "i", ",", "i", ",", "i", "]"
+      ].makeTokens().makeStream()
+
+
+    let parser = newLLStarParser[NoCategory, string, void](grammar)
+    let tree = parser.parse(toks)
+    echo tree.treeRepr()
+
+  test "Elisp funcall":
+    initGrammarConst[NoCategory, string](grammar):
+      List ::= !"(" & "f" & @*(Element) & !")"
+      # Elements ::= Element & @*(@(!"," & Element))
+      Element ::= "i" | List
+
+    let parser = newLLStarParser[NoCategory, string, void](grammar)
+
+    proc testToks(tok: seq[string]): void =
+      let tree = tok.makeTokens().makeStream().withResIt:
+        parser.parse(it)
+
+      echo tree.treeRepr()
+
+    testToks @["(", "f", "i", "i", "i", ")"]
+    testToks @["(", "f", "i", "(", "f", "i", ")", ")"]

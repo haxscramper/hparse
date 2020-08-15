@@ -275,7 +275,8 @@ proc generateGrammar*(body: NimNode, catPrefix: string = ""): NimNode =
         )).toCalls())
 
   # echo result.treeRepr()
-  echo result.toStrLit()        #
+  # echov catPrefix
+  # echo result.toStrLit()
 
 func tokMaker*[C, L](cat: C): Patt[C, L] = grammars.tok[C, L](cat)
 
@@ -283,7 +284,7 @@ func getEnumPref*(en: NimNode): string =
   let impl = en.getTypeImpl()
   # debugecho impl.treeRepr()
   let name = impl[1].strVal()
-  let pref = name.parseUntil(result, {'A' .. 'Z'})
+  let pref = name.parseUntil(result, {'A' .. 'Z', '0' .. '9'})
 
 func isEnum*(en: NimNode): bool = en.getTypeImpl().kind == nnkEnumTy
 

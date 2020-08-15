@@ -36,4 +36,4 @@ suite "Compile-time parsing":
     parseTest("hello world")
 
   test "RX macro":
-    echo rx"(and word word)"
+    echo rx"(and word (| word))"

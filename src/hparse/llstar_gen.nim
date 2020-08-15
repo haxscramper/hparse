@@ -77,9 +77,9 @@ proc makeTermBlock[C, L](term: Patt[C, L]): NimNode =
 
   return quote do:
     let expected = `tokIdent`
-    let tok = next(`toksIdent`)
-    if expected.matches(tok):
-      some(newTree(tok))
+    let tok = nextTry(`toksIdent`)
+    if tok.isSome() and expected.matches(tok.get()):
+      some(newTree(tok.get()))
     else:
       none(ParseTree[`c`, `l`, `i`])
 
