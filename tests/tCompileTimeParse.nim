@@ -1,4 +1,4 @@
-import sugar, strutils, sequtils, strformat, macros
+import sugar, strutils, sequtils, strformat, macros, options
 
 import ../src/hparse, ../src/hparse/[ll1_gen, grammar_dsl]
 import ../src/hparse/nimrx

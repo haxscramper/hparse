@@ -1,5 +1,5 @@
-import macros, sequtils, strutils
-import ../hparse, ll1_gen, grammar_dsl
+import macros, sequtils, strutils, options
+import ../hparse, llstar_gen, grammar_dsl
 
 # func tokenize(())
 
@@ -30,7 +30,8 @@ func tokenize(str: string): seq[RxTok] =
       if word[0] == '\"':
         result.add tok(rxkStrLit, word[1..^3])
       else:
-        result.add tok(rxkIdent, word[0..^1])
+        result.add tok(rxkIdent, word[0..^2])
+        # result.add tok(rxkCl, word[0..^2])
 
       result.add tok(rxkCl, ")")
     elif word[0] == '\"' and word[^1] == '\"':
@@ -38,16 +39,23 @@ func tokenize(str: string): seq[RxTok] =
     else:
       result.add tok(rxkIdent, word)
 
+initGrammarConst[RxKind, string](grammar):
+  List ::= op & ident & *(Element) & cl
+  Element ::= List | ident | strlit | intlit
+
+static:
+  echo grammar.toGrammar().exprRepr()
+
+let parser {.compiletime.} =
+  newLLStarParser[RxKind, string, void](grammar)
+
 
 macro rx*(body: string): untyped =
   echo body.treeRepr()
   var toks = tokenize(body.strVal()).makeStream()
   echo toks.exprRepr()
+  let tree = parser.parse(toks)
+  echo tree.treeRepr()
 
-  initGrammarConst[RxKind, string](grammar):
-    List ::= op & ident & *(Element) & cl
-    Element ::= List | ident | strlit | intlit
-
-  echo grammar.toGrammar().exprRepr()
 
   result = quote: 2

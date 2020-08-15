@@ -157,7 +157,8 @@ func hash*[C, L](tok: ExpectedToken[C, L]): Hash =
   h = h !& hash(tok.cat)
 
   when not (L is void):
-    h = h !& hash(tok.lex)
+    if tok.hasLex:
+      h = h !& hash(tok.lex)
 
   result = !$h
 

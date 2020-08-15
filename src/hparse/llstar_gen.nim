@@ -140,12 +140,22 @@ proc makeNtoMTimesBlock[C, L](nterm: Patt[C, L],
     # echo "entering loop"
     # echo `toksIdent`.peek().exprRepr(), " ", `toksIdent`.peek() in laSet
     # echo laSet.exprRepr()
-    # while `countConstraints` and (not `toksIdent`.finished()) and (`toksIdent`.peek() in laSet):
-    #   # echo "found item"
-    #   `bodyParse`
-    #   inc `cnt`
-    #   `subItems`.add `itemIdent`
+    var startPos = `toksIdent`.absPos()
+    while `countConstraints` and (not `toksIdent`.finished()):
+      `bodyParse`
 
+      if `itemIdent`.isSome():
+        inc `cnt`
+        `subItems`.add `itemIdent`.get()
+        startPos = `toksIdent`.absPos()
+      else:
+        `toksIdent`.revertTo(startPos)
+        break
+
+    if `cnt` < `minLit`:
+      none(ParseTree[`c`, `l`, `i`])
+    else:
+      some(newTree[`c`, `l`, `i`](`subItems`))
     # `minNumAssert`
     # `finalValue`
 
@@ -412,6 +422,6 @@ template newLLStarParser*[C, L, I](
         newCall("initLLStarParser", ident "cb")
     )
 
-    colorPrint(result, doPrint = false)
+    # colorPrint(result, doPrint = false)
 
   buildParser()
