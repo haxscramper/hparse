@@ -1,7 +1,7 @@
 # To support lexing in both compiled and interpreted environments as
 # well as at compile-time
 import regex, token
-import streams, strformat
+import streams, strformat, sequtils
 
 type
   Matcher[Tok] = object
@@ -48,9 +48,21 @@ func revertTo*[Tok](ts: var TokStream[Tok], pos: int): void =
 proc next*[Tok](ts: var TokStream[Tok]): Tok =
   ## Create single token by either parsing new data or returning from
   ## buffer
+  # echo "Getting next token"
   if ts.currPos < ts.buffer.len - 1:
     inc ts.currPos
-    if ts.nextTokCb != nil: ts.nextTokCb(ts.buffer[ts.currPos], ts.currPos)
+    if ts.nextTokCb != nil:
+      when (not nimvm): # FIXME still triggers on compiletime
+        when not defined(nimscript): # FIXME still triggers on compiletime
+          # FIXME fails on compiletime
+          # ts.nextTokCb(ts.buffer[ts.currPos], ts.currPos)
+          discard
+
+      # when not defined(nimscript):
+      # else:
+      #   discard
+    #   echo "done ..."
+    # echo "Returning from buffer"
     return ts.buffer[ts.currPos]
   else:
     if ts.atEnd:
@@ -77,7 +89,7 @@ func makeStream*[Tok](
 
   TokStream[Tok](
     buffer: tokens,
-    newTok: proc(): auto = (stop: true, tok: Tok()),
+    newTok: proc(): tuple[stop: bool, tok: Tok] = (result.stop = true),
     atEnd: true,
     currPos: -1,
     nextTokCb: nextTokCb
@@ -114,3 +126,7 @@ proc reset*[Tok](ts: var TokStream[Tok]): Tok =
   ts.buffer = @[]
   ts.atEnd = false
   ts.currPos = 0
+
+func exprRepr*[Tok](ts: TokStream[Tok]): string =
+  "@" & $ts.currPos & " [" &
+    ts.buffer.mapIt(it.exprRepr()).join(", ") & "]"

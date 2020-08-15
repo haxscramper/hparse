@@ -247,8 +247,11 @@ proc makeTermBlock[C, L](term: CompPatt[C, L]): NimNode =
     tokType = ident "Tok"
     toksIdent = ident "toks"
   return quote do:
+    # echo "token block"
     let expected = `tokIdent`
+    # echo "expected token, retrieving next ..."
     let tok = next(`toksIdent`)
+    # echo "asserting token ..."
     assertToken(expected, tok)
     newTree(tok)
 
@@ -399,6 +402,7 @@ proc makeParseBlock[C, L](
   return newStmtList(
     newCommentStmtNode(comment),
     quote do:
+      # echo "parsing ", `comment`, " ... "
       var `resIdent`: ParseTree[`cId`, `lId`, `iId`] = block:
         `result`
 
@@ -463,9 +467,11 @@ proc makeRuleParser[C, L](
     `parseBody`
     case `resIdent`.kind:
       of ptkToken, ptkNTerm:
-        return newTree(name = `ntermNterm`, subnodes = @[`resIdent`])
+        return newTree(
+          name = `ntermNterm`, subnodes = @[`resIdent`])
       of ptkList:
-        return newTree(name = `ntermNterm`, subnodes = `resIdent`.getSubnodes())
+        return newTree(
+          name = `ntermNterm`, subnodes = `resIdent`.getSubnodes())
 
   return (decl: decl, impl: impl)
 
@@ -517,6 +523,7 @@ func newLL1RecursiveDescent*[C, L, I](
 proc parse*[C, L, I](
   parser: LL1RecursiveDescentParser[C, L, I],
   toks: var TokStream[Token[C, L, I]]): ParseTree[C, L, I] =
+  # echo "parsing ... "
   parser.startCb(toks)
 
 template newLL1RecursiveParser*[C, L, I](
@@ -551,6 +558,7 @@ template newLL1RecursiveParser*[C, L, I](
         newCall("newLL1RecursiveDescent", ident "cb")
     )
 
-    colorPrint(result, doPrint = false)
+    # echo result.toStrLit()
+    # colorPrint(result, doPrint = false)
 
   buildParser()

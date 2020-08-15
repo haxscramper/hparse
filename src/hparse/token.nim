@@ -90,6 +90,7 @@ func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
 func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
   ## Return true if token `tok` matches with expected token `exp`
   # TODO IMPLEMENT
+  # debugecho "Test if token matches"
   if tok.cat != exp.cat:
     false
   else:
