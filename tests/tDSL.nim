@@ -42,8 +42,8 @@ suite "Grammar base":
       tkB
 
   let nt = nterm[TKind, string]
-  proc tok(lex: string): auto = tok[TKind, string](tkA, lex)
-  proc tok(lex: TKind): auto = tok[TKind, string](tkA)
+  proc dslTok(lex: string): auto = tok[TKind, string](tkA, lex)
+  proc dslTok(lex: TKind): auto = tok[TKind, string](makeExpToken[Tkind, string](tkA))
 
 
   template grm(body: untyped): untyped =
@@ -61,15 +61,15 @@ suite "Grammar base":
     }
 
     assertEq initGrammarImpl(A ::= tkA & tkB), {
-      "A" : andP(tok(tkA), tok(tkB))
+      "A" : andP(dslTOk(tkA), dslTOk(tkB))
     }
 
     assertEq initGrammarImpl(A ::= "$" & Z), {
-      "A" : andP(tok("$"), nt("Z"))
+      "A" : andP(dslTOk("$"), nt("Z"))
     }
 
     assertEq initGrammarImpl(A ::= "$" & *(Z & A)), {
-      "A" : andP(tok("$"), zeroP(andP(nt("Z"), nt("A"))))
+      "A" : andP(dslTOk("$"), zeroP(andP(nt("Z"), nt("A"))))
     }
 
     assertEq initGrammarImpl(A ::= (A | B) & C), {
@@ -91,10 +91,10 @@ suite "Grammar base":
         Element ::= tkA | List
     do:
        {
-         "List" : andP(tok("["), nt("Elements"), tok("]")),
+         "List" : andP(dslTOk("["), nt("Elements"), dslTOk("]")),
          "Elements" : andP(
-           nt("Element"), zeroP(andP(tok(","), nt("Element")))),
-         "Element" : orP(tok(tkA), nt("List"))
+           nt("Element"), zeroP(andP(dslTOk(","), nt("Element")))),
+         "Element" : orP(dslTOk(tkA), nt("List"))
        }
 
     assertEq grm(A ::= [B] & C), {"A" : andP(optP(nt "B"), nt("C"))}
@@ -171,24 +171,24 @@ suite "Grammar base":
         Element ::= tkA | List
     do:
        {
-         "List" : andP(tok("["), nt("Elements"), tok("]")),
+         "List" : andP(dslTOk("["), nt("Elements"), dslTOk("]")),
          "Elements" : andP(
            nt("Element"), zeroP(
-             andP(tok(",").addAction(taDrop), nt("Element"))
+             andP(dslTOk(",").addAction(taDrop), nt("Element"))
            ).addAction(taSpliceDiscard)),
-         "Element" : orP(tok(tkA), nt("List"))
+         "Element" : orP(dslTOk(tkA), nt("List"))
        }
 
   test "Grammar template rules":
     proc csvList(str: string): Patt[TKind, string] =
-      andP(tok(str), zeroP(andP(tok(","), tok(str))))
+      andP(dslTOk(str), zeroP(andP(dslTOk(","), dslTOk(str))))
 
     assertEq grm(A ::= %csvList("cat")), {
       "A" : csvList("cat")
     }
 
     assertEq grm(A ::= %csvList("cat")), {
-      "A" : andP(tok("cat"), zeroP(andP(tok(","), tok("cat"))))
+      "A" : andP(dslTOk("cat"), zeroP(andP(dslTOk(","), dslTOk("cat"))))
     }
 
 suite "Grammar DSL API":

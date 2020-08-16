@@ -11,7 +11,7 @@
 
 ** API
 
-- [ ] Make parser procedures ~{.noSideEffect.}~ - make ~fnext~ func
+- [X] Make parser procedures ~{.noSideEffect.}~ - make ~fnext~ func
   for parser in cases where no side effects is possible (lexing is
   done from data in memory (string, sequence of tokens, another token
   stream etc.))
@@ -23,5 +23,6 @@
 
 * Documentation
 
-- [ ] Examples of parse output tree in readme
-- [ ]
+- [X] Examples of parse output tree in readme
+- [ ] more comprehensive manual, covering all public API
+- [ ] development notes, describing internal API

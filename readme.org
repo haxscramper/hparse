@@ -101,7 +101,7 @@ More complex example (with result tree)
 - ~!?~  drop optional
 - ~^?~  prmote optional
 
-Invalid combinations: ~"*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^"~
+Invalid combinations: ~*!~, ~+!~, ~*@~, ~+@~, ~*^@~, ~+^@~, ~+^~, ~*^~
 
 **** Delimiters
 
@@ -163,8 +163,8 @@ Add subnode elements in parent tree. Subtree head is removed.
 *** Splice promote
 
 Splice all node node elements and replace parent node. NOTE: this
-replaces only *parent* node - in expression like ~"-" & ^@B~ parent
-node for ~B~ is concatenation - not nonterminal head. ~A~
+replaces only *parent* node - in expression like ~E ::= A & B~ parent
+node for ~B~ is concatenation - not nonterminal head.
 
 #+begin_src nim :exports both
   echo ecompare(@["-", "+", "+", "+"]) do:
@@ -205,33 +205,74 @@ Move part of the tree into separate list
 
 ** Parse templates
 
-#TODO DOC
-
 Some patterns often occur in grammar construction - list with
 delimiters, kv pairs etc. Even though grammar is pretty simple,
 writing something like ~Element & @*(@(!"," & Element))~ over and over
 again is not really fun. Parse templates are designed to solve this
 issue.
 
-- [ ] example of parse template
-- [ ] explanation of internal grammar implementation
-- [ ] dsl syntax description
+Parse template is a function that will be executed to produce part of
+the pattern. In this example we generate template rule for
+comma-separated list of strings.
 
+#+begin_src nim
+  proc csvList(str: string): Patt[NoCategory, string] =
+    andP(
+      makeExpNoCat(str).tok(),
+      zeroP(andP(
+        makeExpNoCat(",").tok(),
+        makeExpNoCat(str).tok())))
 
-** Token description
+  echo csvList("@").exprRepr()
 
-#TODO DOC
+  echo eparse(@["@", ",", "@"], A ::= %csvList("@"))
+#+end_src
 
-* Integration with other libraries
+#+RESULTS:
+: {'@' & *({',' & '@'})}
+: +-> A
+:     +-> '@'
+:     +-> [ [ ... ] ]
+:         +-> [ [ ... ] ]
+:             +-> ','
+:             +-> '@'
 
-- Conversion of parse tree to graphviz representation using
-  =hasts/graphviz_ast=
+DSL syntax is ~%functionName(..<list-of-arguments>..)~. For
+codegen-based parsers (recursive ~LL(1)~ and ~LL(*)~) function MUST be
+executable at compile-time. In all other cases grammar construction
+happens at runtime. In example above ~LL(*)~ parser was used.
+
+** Parse tree and tokens
+
+Token is has three generic parameters, referred to as ~C~, ~L~ and ~I~
+throughout codebase.
+
+- First one is 'category' for token. It is expected (but not
+  mandatory) to be an enum. Category is usuall things like
+  punctuation, identifier, string/int literal, etc. If you don't need
+  token category use ~NoCategory~ enum.A
+- Second parameter - 'lexeme'. It is can be absolutely anything
+  (~void~ included). This field stores 'all other' information about
+  token - integer/string value for literals for example.
+- Last parameter 'information'. Similar to lexeme - but made for
+  storing additional 'metainformation' for token: position in source
+  code, order in original token stream etc. THis information is NOT
+  used in parsing.
+
+For example of custom token category/lexeme see [[file:manual.org]]
 
 * Development
 
+Large part of the design is described in [[file:devnotes.org]], all
+functions and types are documented in the source code. If you have any
+additional questions feel free to join my [[https://discord.gg/ZnBB4E][discord server]] and ask
+questions there.
+
 ** Rationale
 
-** Design overview
+aka 'why?'
+
+#TODO
 
 ** State of development
 

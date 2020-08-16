@@ -1,0 +1,139 @@
+#+title: Manual
+#+property: header-args:nim+ :flags -d:plainStdout --cc:tcc --hints:off
+#+property: header-args:nim+ :import hparse/doc_example
+
+
+
+* Using custom category and lexeme for tokens
+
+
+#+begin_src nim :exports both
+  import hashes
+
+  type
+    TKind = enum # Token category
+      tkPunct # first enum value will be used as default
+
+      tkStrLit
+      tkIntLit
+      tkIdent
+
+    Tok = object
+      case kind: TKind # Token lexeme is a case object
+        of tkIdent, tkStrLit, tkPunct:
+          strv: string
+        of tkIntLit:
+          intv: int
+
+  func hash(tok: Tok): Hash = # In order to use custom lexeme it must be
+                              # hashable
+    !$(case tok.kind:
+        of tkIntLit: hash(tok.kind) !& hash(tok.intv)
+        else: hash(tok.kind) !& hash(tok.strv))
+
+  func `==`(l, r: Tok): bool = # and equality comparable
+    l.kind == r.kind and (
+      case l.kind
+        of tkIntLit: l.intv == r.intv
+        else: l.strv == r.strv)
+
+  # Sequence of key-value pairs, delimited by braces
+  let input = @[
+    Tok(kind: tkPunct, strv: "["),
+
+    # pair
+    Tok(kind: tkIdent, strv: "a"),
+    Tok(kind: tkPunct, strv: "="),
+    Tok(kind: tkStrLit, strv: "000"),
+
+    # comma
+    Tok(kind: tkPunct, strv: ","),
+
+    # pair
+    Tok(kind: tkIdent, strv: "a"),
+    Tok(kind: tkPunct, strv: "="),
+    Tok(kind: tkIntLit, intv: 19991),
+
+    Tok(kind: tkPunct, strv: "]"),
+  ]
+
+  # If you plan on using string literals in grammar you need to defined
+  # expected token constructor for grammar
+  func makeExpToken(cat: TKind, lex: string): ExpectedToken[TKind, Tok] =
+    var tmp = Tok(kind: cat)
+    tmp.strv = lex
+    makeExpToken(cat, tmp)
+
+  var toks = makeKindTokens[Tkind, Tok](input).makeStream()
+
+  block:
+    initGrammarConst[TKind, Tok](grammar):
+      List ::= !"[" & @Elements & !"]"
+      Elements ::= KvPair & @*(@(!"," & KvPair))
+      KvPair ::= ident & !"=" & (strlit | intlit)
+
+
+    let parser = newLLStarParser[TKind, Tok, void](grammar)
+    let tree = parser.parse(toks)
+
+    echo "\nGenerated parse tree with 'cleanup' tree actions"
+    echo tree.treeRepr()
+
+
+  block:
+    toks.revertTo(0)
+    initGrammarConst[TKind, Tok](grammar):
+      List ::= "[" & Elements & "]"
+      Elements ::= KvPair & *("," & KvPair)
+      KvPair ::= ident & "=" & (strlit | intlit)
+
+    let parser = newLLStarParser[TKind, Tok, void](grammar)
+    let tree = parser.parse(toks)
+
+    echo "\nGenerated parse tree without any cleanup"
+    echo tree.treeRepr()
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{"List": andP(addAction(dslTok("["), taDrop),
+             addAction(nt("Elements"), taSpliceDiscard),
+             addAction(dslTok("]"), taDrop)), "Elements": andP(nt("KvPair"), addAction(zeroP(addAction(
+    andP(addAction(dslTok(","), taDrop), nt("KvPair")), taSpliceDiscard)),
+    taSpliceDiscard)), "KvPair": andP(dslTok(tkIdent),
+                                    addAction(dslTok("="), taDrop),
+                                    orP(dslTok(tkStrlit), dslTok(tkIntlit)))}
+{"List": andP(dslTok("["), nt("Elements"), dslTok("]")),
+ "Elements": andP(nt("KvPair"), zeroP(andP(dslTok(","), nt("KvPair")))), "KvPair": andP(
+    dslTok(tkIdent), dslTok("="), orP(dslTok(tkStrlit), dslTok(tkIntlit)))}
+
+Generated parse tree with 'cleanup' tree actions
++-> List
+    +-> KvPair
+    |   +-> [tkIdent, '(kind: tkIdent, strv: "a")']
+    |   +-> [tkStrLit, '(kind: tkStrLit, strv: "000")']
+    +-> KvPair
+        +-> [tkIdent, '(kind: tkIdent, strv: "a")']
+        +-> [tkIntLit, '(kind: tkIntLit, intv: 19991)']
+
+Generated parse tree without any cleanup
++-> List
+    +-> [tkPunct, '(kind: tkPunct, strv: "[")']
+    +-> Elements
+    |   +-> KvPair
+    |   |   +-> [tkIdent, '(kind: tkIdent, strv: "a")']
+    |   |   +-> [tkPunct, '(kind: tkPunct, strv: "=")']
+    |   |   +-> [tkStrLit, '(kind: tkStrLit, strv: "000")']
+    |   +-> [ [ ... ] ]
+    |       +-> [ [ ... ] ]
+    |           +-> [tkPunct, '(kind: tkPunct, strv: ",")']
+    |           +-> KvPair
+    |               +-> [tkIdent, '(kind: tkIdent, strv: "a")']
+    |               +-> [tkPunct, '(kind: tkPunct, strv: "=")']
+    |               +-> [tkIntLit, '(kind: tkIntLit, intv: 19991)']
+    +-> [tkPunct, '(kind: tkPunct, strv: "]")']
+#+end_example
+
+Tree without cleanup actions contains *all* elements in the original
+source code tree - punctuation elements, closing and opening braces,
+list subtrees (~[ [ ... ] ]~) from ~*~ and concatenation.

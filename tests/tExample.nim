@@ -1,7 +1,8 @@
-import sugar, strutils, sequtils, strformat
+import sugar, strutils, sequtils, strformat, macros
 import hparse/doc_example
 import hmisc/helpers
 import unittest
+import hashes
 
 suite "Grammar exampl":
   test "Tree fixup":
@@ -65,3 +66,16 @@ suite "Tree actions examples":
       A ::= "-" & "z" & "e"
     do:
       A ::= "-" & { "z" & "e" }
+
+
+
+  test "Devnotes example 1":
+    let nt = nterm[NoCategory, string]
+    proc dslTok(lex: string): auto = tok[NoCategory, string](
+      catNoCategory, lex)
+
+    discard expandMacros:
+      initGrammarImpl:
+        List ::= "[" & Elements & "]"
+        Elements ::= Element & @*(!"," & Element)
+        Element ::= "," | List

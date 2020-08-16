@@ -1,0 +1,45 @@
+#+title: devnotes
+#+property: header-args:nim+ :flags -d:plainStdout --cc:tcc --hints:off
+#+property: header-args:nim+ :import hparse/doc_example macros
+
+User mostly interacts with ~Grammar~ and ~Patt~ types, declared in
+[[file:src/hparse/grammars.nim]]. DSL generates to list of constructor
+calls to ~oneP~, ~orP~ etc.
+
+Instantiation of the grammar consists of two parts - first one
+(~initGrammarCalls~) declares some helper constructors (mostly
+~dslTok~ for token construction). Second part - ~initGrammarImpl~
+converts DSL into array of pairs like ~{ "Nonterm" :
+<constructor-calls> }~. Template rule calls are inline in this
+constructor.
+
+#+begin_src nim
+  let nt = nterm[NoCategory, string]
+  proc dslTok(lex: string): auto = tok[NoCategory, string](
+    catNoCategory, lex)
+
+  discard expandMacros:
+    initGrammarImpl:
+      List ::= "[" & Elements & "]"
+      Elements ::= Element & @*(!"," & Element)
+      Element ::= "," | List
+#+end_src
+
+#+RESULTS:
+:
+: [("List", andP([dslTok("["), nt("Elements"), dslTok("]")])), ("Elements", andP([
+:     nt("Element"), addAction(zeroP(andP([addAction(dslTok(","), taDrop),
+:                                         nt("Element")])), taSpliceDiscard)])),
+:  ("Element", orP([dslTok(","), nt("List")]))]
+
+DSL macro generates grammar literal, that can be converted into
+parser. Codegen-based parsers accept it as-is. For table-driven
+parsers you need to convert grammar literal to actual ~Grammar~
+object, using ~toGrammar()~ function.
+
+How parser construction is performed differs a lot for codegen and
+runtime parsers.
+
+* Codegen parser construction
+
+* Runtime parser construction

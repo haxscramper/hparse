@@ -132,6 +132,10 @@ func makeTokens*(lexemes: seq[string]
   ## Mostly used for examples.
   lexemes.mapIt(makeTokenNoCatInfo[string](it))
 
+func makeKindTokens*[C, L](tok: seq[L]): seq[Token[C, L, void]] =
+  mixin kind
+  tok.mapIt(makeTokenNoInfo(it.kind, it))
+
 
 #==============================  Accessors  ==============================#
 func setPosInfo*[C, L](tok: var Token[C, L, LexInfo], pos: int): void =
@@ -164,6 +168,7 @@ func contains*[L](lset: LexSet[L], lex: L): bool =
   lex in lset.lexemes
 
 func hash*[C, L](tok: ExpectedToken[C, L]): Hash =
+  mixin hash
   var h: Hash = 0
   h = h !& hash(tok.cat)
 

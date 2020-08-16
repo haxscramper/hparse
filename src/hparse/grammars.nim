@@ -85,6 +85,7 @@ func optP*[C, L](patt: Patt[C, L]): Patt[C, L] =
   Patt[C, L](kind: pkOptional, item: @[ patt ])
 
 func andP*[C, L](patts: varargs[Patt[C, L]]): Patt[C, L] =
+  mixin hash
   Patt[C, L](kind: pkConcat, patts: toSeq(patts))
 
 func nullP*[C, L](): Patt[C, L] =
@@ -108,6 +109,17 @@ func tok*[C, L](cat: C): Patt[C, L] =
 
 func nterm*[C, L](nterm: string): Patt[C, L] =
   Patt[C, L](kind: pkNTerm, nterm: nterm)
+
+
+# proc dslTok*[C](cat: C): Patt[C, L] =
+#   tok(makeExpToken(cat))
+
+proc dslTok*[C, L](cat: C, lex: L): Patt[C, L] =
+  tok(makeExpToken(cat, lex))
+
+# proc dslTok*[C, L](cat: C, lex: L): Patt[C, L] =
+#   tok(makeExpToken(cat, lex))
+
 
 #============================  Constructors  =============================#
 

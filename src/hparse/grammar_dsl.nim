@@ -198,9 +198,9 @@ proc flattenPatt(node: NimNode, conf: GenConf): PattTree =
 proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
     of ptkStrLiteral:
-      newCall("tok", newLit(patt.strVal))
+      newCall("dslTok", newLit(patt.strVal))
     of ptkTokenComposed:
-      newCall("tok", ident(patt.catVal), patt.lexVal)
+      newCall("dslTok", ident(patt.catVal), patt.lexVal)
     of ptkCall:
       patt.expr
     of ptkTreeAction:
@@ -245,7 +245,7 @@ proc toCalls(patt: PattTree): NimNode =
 
       call
     of ptkTokenKind:
-      newCall("tok", ident patt.token)
+      newCall("dslTok", ident patt.token)
     of ptkNtermName:
       newCall("nt", newLit(patt.nterm))
 
@@ -299,15 +299,28 @@ macro initGrammarImplCat*(cat: typed, body: untyped): untyped =
 
 template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
+  # mixin makeExpectedToken
   when catT is void:
-    proc tok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
+    proc dslTok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
   else:
-    proc tok(lex: string): Patt[catT, lexT] = tok[catT, lexT](catT(0), lex)
+    proc dslTok(lex: string): Patt[catT, lexT] = tok(
+      makeExpToken(catT(0), lex))
+
+  when not (catT is void) or (lexT is void):
+    proc dslTok(cat: catT, lex: lexT): Patt[catT, lexT] = tok(
+      makeExpToken(cat, lex))
+
+  when not (lexT is string):
+    proc dslTok(cat: catT, lex: string): Patt[catT, lexT] = tok(
+      makeExpToken(cat, lex))
+  # elif (lexT is string) and (catT is NoCategory):
+  #   proc dslTok(lex: string): Patt[NoCategory, string] =
+  #     tok(makeExpToken(catNoCategory, lex))
 
   proc null(): Patt[catT, lexT] = nullP[catT, lexT]()
 
   when not (catT is void):
-    proc tok(cat: catT): Patt[catT, lexT] = tokMaker[catT, lexT](cat)
+    proc dslTok(cat: catT): Patt[catT, lexT] = tokMaker[catT, lexT](cat)
 
 
 template initGrammar*[C, L](body: untyped): untyped =
@@ -319,5 +332,6 @@ template initGrammar*[C, L](body: untyped): untyped =
 template initGrammarConst*[C, L](cname: untyped, body: untyped): untyped =
   const cname =
     block:
+      mixin hash
       initGrammarCalls(C, L)
       initGrammarImplCat(C, body)
