@@ -70,16 +70,19 @@ More complex example (with result tree)
 
 **** EBNF prefix
 
-- "*" :: zero-or-more
-- "+" :: one-or-more
-- "?" :: optional
+| Prefix | action       |
+| "*"    | zero-or-more |
+| "+"    | one-or-more  |
+| "?"    | optional     |
 
 **** Tree actions prefix
 
-- "!" :: drop
-- "@" :: splice-discard
-- "^" :: promote
-- "^@" :: splice-promote
+
+| Prefix | action         |
+| ~"!"~  | drop           |
+| ~"@"~  | splice-discard |
+| ~"^"~  | promote        |
+| ~"^@"~ | splice-promote |
 
 **** Prefix combinations
 
@@ -94,14 +97,15 @@ More complex example (with result tree)
 # - "@?" :: splice optional
 # - "^@?" :: splice-promote optional
 
-- "!*" :: drop zero-or-more elements
-- "!+" :: drop one-or-more
-- "@+" :: splice one-or-more
-- "@*" :: splice zero-or-more
-- "!?" :: drop optional
-- "^?" :: prmote optional
+| Syntax | action                     |
+| ~"!*"~ | drop zero-or-more elements |
+| ~"!+"~ | drop one-or-more           |
+| ~"@+"~ | splice one-or-more         |
+| ~"@*"~ | splice zero-or-more        |
+| ~"!?"~ | drop optional              |
+| ~"^?"~ | prmote optional            |
 
-Invalid combinations:     "*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^"
+Invalid combinations: ~"*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^"~
 
 **** Delimiters
 
