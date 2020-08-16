@@ -100,7 +100,7 @@ func newPattTree(prefixNode: NimNode, patt: PattTree): PattTree =
           of treeActionSigilsInvalid:
             "Incorrect transposition of elements"
           else:
-            "Incorrect combination"
+            "Incorrect prefix combination"
 
       raiseCodeError(
         prefixNode, &"Unexpected prefix: '{prefix}'", annot, -1)

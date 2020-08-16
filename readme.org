@@ -68,8 +68,6 @@ More complex example (with result tree)
 
 *** Nonterminals
 
-***
-
 ** Tree actions
 
 Result of parser generator is a =parse tree= - very representation of
@@ -172,14 +170,37 @@ echo "Table-driven parser tree"
 echo llTableParser.parse(@["hello", "hello", "hello"]).treeRepr()
 #+end_src
 
-* Things that I just *have* to write about
+* DSL error reporting
 
 DSL for this library uses =hmisc/hexceptions= to generate *much*
-better compilation errors. Example:
+better compilation errors in case of malformed DSL.
 
-#TODO add example
-#IDEA if ~plainStdout~ is defined, remove all color from output.
+#+begin_src nim
+let tree = "h".exampleParse:
+  A ::= !@*("h")
 
-Note: output is not colored in readme (because github [[https://github.com/github/markup/issues/369][fails]] to support
+echo tree.treeRepr()
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Unexpected prefix: '!@*'
+
+ 2   let tree = "h".exampleParse:
+ 5:8   A ::= !@*("h")
+             ^^^
+             |
+             Incorrect prefix combination
+
+
+
+Raised in grammar_dsl.nim:105
+
+
+ [CodeError:ObjectType]
+#+end_example
+
+
+NOTE: output is not colored in readme (because github [[https://github.com/github/markup/issues/369][fails]] to support
 this basic feature *since 2014*), but it is colored by default
 terminal (controlled by using ~-d:plainStdout~ compilation flag)

@@ -37,3 +37,18 @@ template exampleGrammarConst*(name, body: untyped): untyped =
 template exampleParser*(body: untyped): untyped =
   newLLStarParser[NoCategory, string, void]:
     body
+
+template exampleParse*(str: string, grammar: untyped): untyped =
+  const name = block:
+    initGrammarCalls(NoCategory, string)
+    initGrammarImplCat(NoCategory, grammar)
+
+  let parser = exampleParser(name)
+  var stream =
+    when str is string:
+      str.mapIt($it).filterIt(it == " ").makeTokens().makeStream()
+    else:
+      str.makeTokens().makeStream()
+
+  let tree = parser.parse(stream)
+  tree
