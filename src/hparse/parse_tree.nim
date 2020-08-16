@@ -340,6 +340,8 @@ func treeReprImpl*[C, L, I](
   pref: seq[bool],
   parentMaxIdx, currIdx: int,
   kindPref: string): seq[string] =
+  let colorize = not defined(plainStdout)
+  # debugecho defined(plainStdout)
   let prefStr = pref.mapIt(
     if it: "|   " else: "    "
   ).join("") & "+-> " & (node.action != taDefault).tern(
@@ -351,23 +353,26 @@ func treeReprImpl*[C, L, I](
     of ptkToken:
       when (C is NoCategory) and (L is string):
         mixin toGreen
-        @[ fmt("{prefStr}'{toGreen($node.tok.lex, true)}'") ]
+        @[ fmt("{prefStr}'{toGreen($node.tok.lex, colorize)}'") ]
       else:
         mixin toGreen
         @[
           &"{prefStr}[{node.tok.cat}, " &
-          &"'{toGreen($node.tok.lex, true)}']"
+          &"'{toGreen($node.tok.lex, colorize)}']"
         ]
     of ptkNTerm:
-      @[ fmt("{prefStr}{toYellow(node.nterm, true)}") ]
+      @[ fmt("{prefStr}{toYellow(node.nterm, colorize)}") ]
     of ptkList:
       @[ fmt("{prefStr}[ {node.nodeKindStr()} ]") ]
 
-  for idx, subn in node.getSubnodes():
-    result &= subn.treeReprImpl(pref & @[
-      currIdx != parentMaxIdx
-    ],
-    node.len - 1, idx, kindPref)
+  if node.kind == ptkNTerm and node.len == 1 and node[0].kind == ptkToken:
+    result[0] &= " +-> " & node[0].tok.exprRepr()
+  else:
+    for idx, subn in node.getSubnodes():
+      result &= subn.treeReprImpl(pref & @[
+        currIdx != parentMaxIdx
+      ],
+      node.len - 1, idx, kindPref)
 
 func treeRepr*[C, L, I](node: ParseTree[C, L, I], kindPref: string = ""): string =
   treeReprImpl(node, @[], 0, 0, kindPref).join("\n")

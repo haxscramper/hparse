@@ -49,5 +49,5 @@ const defaultGrammarPrintConf*: GrammarPrintConf = GrammarPrintConf(
   ntermWrap: ("<", ">"),
   termWrap: ("'", "'"),
   enumerateAlts: true,
-  colored: true
+  colored: not defined(plainStdout)
 )

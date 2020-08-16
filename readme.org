@@ -1,4 +1,6 @@
 #+title: readme
+#+property: header-args:nim+ :flags -d:plainStdout --cc:tcc --hints:off
+#+property: header-args:nim+ :import hparse/doc_example
 
 Collection of variout utilities related to parsing, ranging from
 statically typed wrapper on top of ~scanf~ to full parser generator
@@ -38,11 +40,31 @@ More complex example (with result tree)
 
 #+caption: Nested list grammar
 #+begin_src nim
-  let grammar = initGrammar[NoCategory, string]:
+  exampleGrammarConst(grammar):
     List ::= !"[" & Elements & !"]"
     Elements ::= Element & @*(@(!"," & Element))
     Element ::= "i" | List
+
+  let parser = exampleParser(grammar)
+  var stream = "[i,i,[i,i,i],i]".mapIt($it).makeTokens().makeStream()
+  let tree = parser.parse(stream)
+  echo tree.treeRepr()
 #+end_src
+
+#+RESULTS:
+#+begin_example
++-> List
+    +-> Elements
+        +-> Element +-> 'i'
+        +-> Element +-> 'i'
+        +-> Element
+        |   +-> List
+        |       +-> Elements
+        |           +-> Element +-> 'i'
+        |           +-> Element +-> 'i'
+        |           +-> Element +-> 'i'
+        +-> Element +-> 'i'
+#+end_example
 
 *** Nonterminals
 
@@ -78,6 +100,17 @@ Add subnode elements in parent tree
 ** Parse templates
 
 #TODO DOC
+
+Some patterns often occur in grammar construction - list with
+delimiters, kv pairs etc. Even though grammar is pretty simple,
+writing something like ~Element & @*(@(!"," & Element))~ over and over
+again is not really fun. Parse templates are designed to solve this
+issue.
+
+- [ ] example of parse template
+- [ ] explanation of internal grammar implementation
+- [ ] dsl syntax description
+
 
 ** Token description
 
