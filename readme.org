@@ -39,7 +39,7 @@ More complex example (with result tree)
 #TODO generate tree
 
 #+caption: Nested list grammar
-#+begin_src nim
+#+begin_src nim :exports both
   exampleGrammarConst(grammar):
     List ::= !"[" & Elements & !"]"
     Elements ::= Element & @*(@(!"," & Element))
@@ -129,7 +129,7 @@ issue.
 
 Parser generator is currently work-in-progress. All advertized
 features are implemented, but number of supported algorithms is
-lacking - fully supported is only backtracking LL(*). Codegen and
+lacking - fully supported is only backtracking ~LL(*)~. Codegen and
 table-driven ~LL(1)~ are partially supported (have some weird bugs).
 Some work has been done on adding ~SLR~ and ~Earley~ parser.
 
@@ -137,9 +137,35 @@ Parser generator has relatively clean and documented internal API,
 designed to make implementation of new algorithms as simple as
 possible (lost of details are abstracted).
 
-#TODO add note about earley parser
+** Contribution
+
+In addition to usual things - issues, unit tests, documentation
+updates etc. there are several things that I wasn't able to implement
+myself. If you are interested to solve one of there problems it will
+be especially useful.
+
+If you have any question about implementation details, API etc. you
+can join my [[https://discord.gg/ZnBB4E][discord server]].
+
+*** Earley parser
+
+When implementing ~Earley~ parser I mostly followed [[http://loup-vaillant.fr/tutorials/earley-parsing/][this]] tutorial - it
+has example implementation in ocaml and very nice explanation of most
+algorithm parts, except for tree construction itself. My very limited
+knowled of =ocaml= wasn't enough to fully rewrite it in =nim=.
+Standalone rewrite is in [[file:src/hparse/earley_parser.nim]] - it does
+not depend on any other library parts (can copy-paste on playground
+and it will run just fine).
+
+This parser algorithm is much more powerful compared to recursive
+descent and even shift-reduce parsers. It can handle left recursion,
+ambiguous and nullable rules.
+
 
 ** Unsolved problems
+
+
+*** Fix tree after EBNF -> BNF rewriting
 
 Only recursive descent parsers can accept EBNF notation as-is. Every
 other one requires conversion from EBNF to BNF (implemented, tested).
@@ -175,7 +201,7 @@ echo llTableParser.parse(@["hello", "hello", "hello"]).treeRepr()
 DSL for this library uses =hmisc/hexceptions= to generate *much*
 better compilation errors in case of malformed DSL.
 
-#+begin_src nim
+#+begin_src nim :exports both
 let tree = "h".exampleParse:
   A ::= !@*("h")
 
