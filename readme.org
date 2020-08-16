@@ -84,6 +84,8 @@ Currently five types of actions are supported.
 
 *** Drop
 
+src_nim{echo "eee"} {{{results(eee)}}}
+
 *** Splice discard
 
 Add subnode elements in parent tree
@@ -168,6 +170,9 @@ ambiguous and nullable rules.
 
 
 *** Fix tree after EBNF -> BNF rewriting
+    :PROPERTIES:
+    # :header-args:nim: :session ebnf-bnf-conversion
+    :END:
 
 Only recursive descent parsers can accept EBNF notation as-is. Every
 other one requires conversion from EBNF to BNF (implemented, tested).
@@ -180,6 +185,126 @@ E1~ - recursion is replaced with iteration.
 
 #TODO IDEA add support for ~block~ sessions - code will be wrapped
 into ~block:~ (or alternative for other programming language).
+
+#+caption: Comparison of ~LL(*)~ and table-driven LL(1) (w/o fixup)
+#+begin_src nim :exports both
+  initGrammarConst[NoCategory, string](grammar):
+    A ::= "hello" & *(B) & "world"
+    B ::= "!!"
+
+  var toks = @[
+    "hello", "!!", "!!", "!!", "world"].makeTokens().makeStream()
+
+  let grammarVal =
+    block:
+      let tmp = grammar
+      tmp.toGrammar()
+
+  echo "Original grammar"
+  echo grammarVal.exprRepr()
+  echo "---\n"
+
+  echo "Grammar converter to BNF"
+  echo grammarVal.toBNF().exprRepr()
+  echo "---\n"
+
+  echo "Recursive descent tree"
+  let parser1 = newLLStarParser[NoCategory, string, void](grammar)
+  let tree1 = parser1.parse(toks)
+  echo tree1.treeRepr()
+  echo "---\n"
+
+  toks.revertTo(0)
+
+  echo "Table-driven parser tree without structure fixup"
+  let parser2 = newLL1TableParser(
+    grammarVal,
+    dofixup = false,
+    retainGenerated = true
+  )
+  let tree2 = parser2.parse(toks)
+  echo tree2.treeRepr()
+  echo "---\n"
+
+
+  toks.revertTo(0)
+
+  echo "Table-driven parser tree with fixup"
+  let parser3 = newLL1TableParser(grammarVal, dofixup = true)
+  let tree3 = parser3.parse(toks)
+  echo tree3.treeRepr()
+  echo "---\n"
+#+end_src
+
+#+RESULTS:
+#+begin_example
+Original grammar
+A            ::= {'hello' & *(<B>) & 'world'}
+B            ::= '!!'
+---
+
+Grammar converter to BNF
+A  ::=
+.0 | 'hello' & <A0_1> & 'world'
+
+B  ::=
+.0 | '!!'
+
+A0_1  ::=
+.0 | Ɛ
+.1 | <B> & <@A0_1>
+
+---
+
+Recursive descent tree
++-> A
+    +-> 'hello'
+    +-> [ [ ... ] ]
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    +-> 'world'
+---
+
+Table-driven parser tree without structure fixup
++-> A
+    +-> 'hello'
+    +-> A0_1
+    |   +-> B +-> '!!'
+    |   +-> A0_1
+    |       +-> B +-> '!!'
+    |       +-> A0_1
+    |           +-> B +-> '!!'
+    +-> 'world'
+---
+
+Table-driven parser tree with fixup
++-> A
+    +-> 'hello'
+    +-> [ [ ... ] ]
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    +-> 'world'
+---
+
+#+end_example
+
+
+Instead of ~*(B)~ new rule ~A0_1~ is introduced, with two possible
+alternatives: either empty production (~Ɛ~) or ~B~, followed by ~A0_1~
+again. How this conversion affects parse tree can be seen in the
+output: instead of simple list of elements you get deeply nested tree
+of ~A0_1~. This is fixed automatically when converting ~EBNF~ grammar
+to ~BNF~ by adding 'splice' rule on every use of newly generated
+pattern.
+
+It kind of works (not really tested though), but I'm yet to figure how
+to preserve original tree actions. For example, when converting
+something like ~@*(@{!',' & <Element>})}~ to BNF it gets flattened
+out, and it is not clear how to first splice things in ~!',' &
+<Element>~, and then splice it again.
+
 
 #+caption: Grammar
 #+begin_src nim
@@ -223,7 +348,7 @@ Table-driven parser tree
     |   +-> B +-> '!!'
     |   +-> B +-> '!!'
     |   +-> B +-> '!!'
-    +-> [ [ ... ] ]
+    +-> 'world'
 #+end_example
 
 * DSL error reporting

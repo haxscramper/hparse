@@ -42,7 +42,7 @@ type
     colored*: bool
 
 const defaultGrammarPrintConf*: GrammarPrintConf = GrammarPrintConf(
-  emptyProd: "ε",
+  emptyProd: "Ɛ",
   prodArrow: "::=",
   concatSep: " & ",
   alternSep: " | ",

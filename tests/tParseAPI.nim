@@ -112,6 +112,7 @@ suite "Compare parsers table vs codegen LL(1)":
 
     echo "EBNF grammar"
     echo grammarVal.toGrammar().exprRepr()
+    echo grammarVal.toGrammar().toBNF().exprRepr()
 
     block:
       let recParser = newLL1RecursiveParser[NoCategory, string, void](

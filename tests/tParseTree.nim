@@ -15,7 +15,7 @@ func ntree(nterm: string,
   initParseTree[int, string, void](nterm, acts)
 
 func ntree(tok: int, lex: string = "--"): ParseTree[int, string, void] =
-  newTree(Token[int, string, void](cat: tok, lex: lex))
+  newTree(makeTokenNoInfo(tok, lex))
 
 suite "Tree actions primitives":
   test "test":
