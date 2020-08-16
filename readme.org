@@ -70,19 +70,16 @@ More complex example (with result tree)
 
 **** EBNF prefix
 
-| Prefix | action       |
-| "*"    | zero-or-more |
-| "+"    | one-or-more  |
-| "?"    | optional     |
+- ~*~ zero-or-more
+- ~+~ one-or-more
+- ~?~ optional
 
 **** Tree actions prefix
 
-
-| Prefix | action         |
-| ~"!"~  | drop           |
-| ~"@"~  | splice-discard |
-| ~"^"~  | promote        |
-| ~"^@"~ | splice-promote |
+- ~!~ drop
+- ~@~ splice-discard
+- ~^~ promote
+- ~^@~ splice-promote
 
 **** Prefix combinations
 
@@ -97,13 +94,12 @@ More complex example (with result tree)
 # - "@?" :: splice optional
 # - "^@?" :: splice-promote optional
 
-| Syntax | action                     |
-| ~"!*"~ | drop zero-or-more elements |
-| ~"!+"~ | drop one-or-more           |
-| ~"@+"~ | splice one-or-more         |
-| ~"@*"~ | splice zero-or-more        |
-| ~"!?"~ | drop optional              |
-| ~"^?"~ | prmote optional            |
+- ~!*~  drop zero-or-more elements
+- ~!+~  drop one-or-more
+- ~@+~  splice one-or-more
+- ~@*~  splice zero-or-more
+- ~!?~  drop optional
+- ~^?~  prmote optional
 
 Invalid combinations: ~"*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^"~
 
