@@ -11,6 +11,7 @@ import grammar_dsl,
   llstar_gen,
   ll1_table
 
+import hdrawing/term_buf
 
 export grammar_dsl,
   parse_tree,
@@ -50,17 +51,35 @@ template exampleStream*(str: typed): untyped =
   stream
 
 
+
 template exampleParse*(str: typed, grammar: untyped): untyped =
   const name = block:
     initGrammarCalls(NoCategory, string)
     initGrammarImplCat(NoCategory, grammar)
 
+  let grm = name
+  # echo grm.toGrammar().exprRepr()
   let parser = exampleParser(name)
   var stream = exampleStream(str)
   let tree = parser.parse(stream)
   tree
 
+template eparse*(str: typed, grm: untyped): untyped =
+  let tree = exampleParse(str, grm)
+  tree.treeRepr()
 
+template ecompare*(input: typed, gr1, gr2: untyped): untyped =
+  sideBySide(
+    eparse(input, gr1),
+    eparse(input, gr2)
+  )
+
+func sideBySide*(str1, str2: string): string =
+  concatBufsLeft(@[
+    str1.toTermBuf(),
+    makeTermBuf(w = 3, h = 1),
+    str2.toTermBuf()
+  ]).toString()
 
 template exampleParseBNF*(str: typed, grammar: untyped): untyped =
   let name = block:

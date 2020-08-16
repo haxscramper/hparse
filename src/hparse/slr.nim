@@ -267,7 +267,7 @@ func dotRepr*[C, L](goto: LRGotoTable[C, L],
   result.styleNode.shape = nsaRect
   # result.splines = spsOrtho
 
-func newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
+proc newSLRParser*[C, L](grammar: Grammar[C, L]): SLRParser[C, L] =
   result.grammar = grammar.toBNF().addMain()
   let (goto, gitems) = result.grammar.makeItemsets()
   # {.noSideEffect.}:

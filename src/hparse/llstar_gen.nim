@@ -395,33 +395,34 @@ template newLLStarParser*[C, L, I](
   body: typed,
   standalone: bool = false): untyped =
   # Trillion IQ hack
-  macro buildParser(): untyped =
-    let grammar = toGrammar(body)
-    let cbName = grammar.start.makeParserName()
-    result = newStmtList(
-      makeLLStarParser(grammar),
-      nnkLetSection.newTree(
-        nnkIdentDefs.newTree(
-          newIdentNode("cb"),
-          newEmptyNode(),
-          nnkBracketExpr.newTree(
-            newIdentNode(cbName),
-            newIdentNode($(typeof I))
-          )
-        )
-      ),
-      if standalone:
+  block:
+    macro buildParser(): untyped =
+      let grammar = toGrammar(body)
+      let cbName = grammar.start.makeParserName()
+      result = newStmtList(
+        makeLLStarParser(grammar),
         nnkLetSection.newTree(
           nnkIdentDefs.newTree(
-            newIdentNode("parser"),
+            newIdentNode("cb"),
             newEmptyNode(),
-            nnkCall.newTree(
-              newIdentNode("initLLStarParser"),
-              newIdentNode("cb"))))
-      else:
-        newCall("initLLStarParser", ident "cb")
-    )
+            nnkBracketExpr.newTree(
+              newIdentNode(cbName),
+              newIdentNode($(typeof I))
+            )
+          )
+        ),
+        if standalone:
+          nnkLetSection.newTree(
+            nnkIdentDefs.newTree(
+              newIdentNode("parser"),
+              newEmptyNode(),
+              nnkCall.newTree(
+                newIdentNode("initLLStarParser"),
+                newIdentNode("cb"))))
+        else:
+          newCall("initLLStarParser", ident "cb")
+      )
 
-    # colorPrint(result, doPrint = false)
+      # colorPrint(result, doPrint = false)
 
-  buildParser()
+    buildParser()

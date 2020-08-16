@@ -147,7 +147,7 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
 proc flattenPatt(node: NimNode, conf: GenConf): PattTree =
   # echo node.treeRepr()
   case node.kind:
-    of nnkIdent, nnkStrLit:
+    of nnkIdent, nnkStrLit, nnkCurly:
       return newPattTree(node, conf)
     of nnkPrefix:
       if node[1].kind == nnkCurly:

@@ -51,3 +51,17 @@ suite "Grammar exampl":
     let tree3 = parser3.parse(toks)
     echo tree3.treeRepr()
     echo "---\n\n"
+
+suite "Tree actions examples":
+  test "Drop tree action":
+    echo ecompare(@["a", "b", "c"]) do:
+      A ::= "a" & "b" & "c"
+    do:
+      A ::= "a" & !"b" & "c"
+
+
+  test "Subrule tree action":
+    echo ecompare(@["-", "z", "e"]) do:
+      A ::= "-" & "z" & "e"
+    do:
+      A ::= "-" & { "z" & "e" }

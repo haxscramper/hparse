@@ -66,6 +66,48 @@ More complex example (with result tree)
         +-> Element +-> 'i'
 #+end_example
 
+*** DSL syntax
+
+**** EBNF prefix
+
+- "*" :: zero-or-more
+- "+" :: one-or-more
+- "?" :: optional
+
+**** Tree actions prefix
+
+- "!" :: drop
+- "@" :: splice-discard
+- "^" :: promote
+- "^@" :: splice-promote
+
+**** Prefix combinations
+
+# NOTE i'm really not sure about these actions: I need to figure out
+# how they should work. Promoting multiple elements at once?
+
+
+# - "^@*" :: splice-promote zero-or-more
+# - "^@+" :: splice-promote zero-or-more
+# - "^*" :: promote zero-or-more
+# - "^+" :: promote one-or-more
+# - "@?" :: splice optional
+# - "^@?" :: splice-promote optional
+
+- "!*" :: drop zero-or-more elements
+- "!+" :: drop one-or-more
+- "@+" :: splice one-or-more
+- "@*" :: splice zero-or-more
+- "!?" :: drop optional
+- "^?" :: prmote optional
+
+Invalid combinations:     "*!", "+!", "*@", "+@", "*^@", "+^@", "+^", "*^"
+
+**** Delimiters
+
+
+
+
 *** Nonterminals
 
 ** Tree actions
@@ -80,20 +122,84 @@ actually necessary, everything else can be thrown away immediately.
 unnecessary parts of the parse tree, flattening out nested parts etc.
 Currently five types of actions are supported.
 
-#TODO example of each tree action
-
 *** Drop
 
-src_nim{echo "eee"} {{{results(eee)}}}
+Completely remove subtree element
+
+#+begin_src nim :exports both
+  echo ecompare(@["a", "b", "c"]) do:
+    A ::= "a" & "b" & "c"
+  do:
+    A ::= "a" & !"b" & "c"
+#+end_src
+
+#+RESULTS:
+: +-> A        +-> A
+:     +-> 'a'      +-> 'a'
+:     +-> 'b'      +-> 'c'
+:     +-> 'c'
 
 *** Splice discard
 
-Add subnode elements in parent tree
+Add subnode elements in parent tree. Subtree head is removed.
+
+#+begin_src nim :exports both
+  echo ecompare(@["-", "+", "+", "+", "-"]) do:
+    A ::= "-" & *"+" & "-"
+  do:
+    A ::= "-" & @*"+" & "-"
+#+end_src
+
+#+RESULTS:
+: +-> A                +-> A
+:     +-> '-'              +-> '-'
+:     +-> [ [ ... ] ]      +-> '+'
+:     |   +-> '+'          +-> '+'
+:     |   +-> '+'          +-> '+'
+:     |   +-> '+'          +-> '-'
+:     +-> '-'
 
 
 *** Splice promote
 
+Splice all node node elements and replace parent node. NOTE: this
+replaces only *parent* node - in expression like ~"-" & ^@B~ parent
+node for ~B~ is concatenation - not nonterminal head. ~A~
+
+#+begin_src nim :exports both
+  echo ecompare(@["-", "+", "+", "+"]) do:
+    A ::= "-" & B
+    B ::= *"+"
+  do:
+    A ::= "-" & ^@B
+    B ::= *"+"
+#+end_src
+
+#+RESULTS:
+: +-> A            +-> A
+:     +-> '-'          +-> B
+:     +-> B                +-> '-'
+:         +-> '+'          +-> '+'
+:         +-> '+'          +-> '+'
+:         +-> '+'          +-> '+'
+
 *** Subrule
+
+Move part of the tree into separate list
+
+#+begin_src nim :exports both
+  echo ecompare(@["-", "z", "e"]) do:
+    A ::= "-" & "z" & "e"
+  do:
+    A ::= "-" & { "z" & "e" }
+#+end_src
+
+#+RESULTS:
+: +-> A        +-> A
+:     +-> '-'      +-> '-'
+:     +-> 'z'      +-> [ [ ... ] ]
+:     +-> 'e'          +-> 'z'
+:                      +-> 'e'
 
 *** Promote
 
@@ -306,16 +412,16 @@ out, and it is not clear how to first splice things in ~!',' &
 <Element>~, and then splice it again.
 
 
-#+caption: Grammar
-#+begin_src nim
-exampleConstGrammar:
-  A ::= *("hello")
+# #+caption: Grammar
+# #+begin_src nim
+# exampleConstGrammar:
+#   A ::= *("hello")
 
-let llRecParser = newLL1RecursiveParser(grammar)
-let llTableParser = newLL1TableParser(grammar) # TODO add overloaded constructor for example
-#+end_src
+# let llRecParser = newLL1RecursiveParser(grammar)
+# let llTableParser = newLL1TableParser(grammar) # TODO add overloaded constructor for example
+# #+end_src
 
-#+begin_src nim
+#+begin_src nim :expors both
 let tree1 = @["hello", "!!", "!!", "!!", "world"].exampleParse:
   A ::= "hello" & *(B) & "world"
   B ::= "!!"

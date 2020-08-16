@@ -467,7 +467,9 @@ func runTreeActions*[C, L, I](tree: var ParseTree[C, L, I]): void =
         else:
           discard #[ IMPLEMENT repeated promotions ]#
       of taSubrule:
-        discard #[ IMPLEMENT ]#
+        # tree = subnode
+        newsubn &= newTree(subnode.getSubnodes())
+        # discard #[ IMPLEMENT ]#
 
 
   case tree.kind:
