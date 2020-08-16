@@ -2,8 +2,8 @@
 
 Collection of variout utilities related to parsing, ranging from
 statically typed wrapper on top of ~scanf~ to full parser generator
-(with support for EBNF notation, tree actions, template rules, and ast
-generation)
+(with support for EBNF notation, tree actions, template rules,
+compile/runtime parsing and automatic parse tree generation)
 
 * Small utilities
 
@@ -147,6 +147,6 @@ better compilation errors. Example:
 #TODO add example
 #IDEA if ~plainStdout~ is defined, remove all color from output.
 
-Note: output is not colored in readme (because github [[ihttps://github.com/github/markup/issues/369][fails]] to support
+Note: output is not colored in readme (because github [[https://github.com/github/markup/issues/369][fails]] to support
 this basic feature *since 2014*), but it is colored by default
 terminal (controlled by using ~-d:plainStdout~ compilation flag)
