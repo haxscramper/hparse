@@ -80,7 +80,9 @@ suite "Table-driven vs recursive descent":
       recursiveParser = newLL1RecursiveParser[
         TokenKind, string, LexInfo](grammarConst)
       tableParser = newLL1TableParser[TokenKind, string](
-        grammarVal.toGrammar(), retainGenerated = false)
+        grammarVal.toGrammar(), retainGenerated = false,
+        dofixup = false
+      )
 
       testInput = "[a,b,e,e,z,e]"
 

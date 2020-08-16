@@ -139,8 +139,10 @@ possible (lost of details are abstracted).
 
 ** Contribution
 
-In addition to usual things - issues, unit tests, documentation
-updates etc. there are several things that I wasn't able to implement
+All sorts of contributions are welcome - issues, unit tests,
+documentation updates etc.
+
+In addition there are several things that I wasn't able to implement
 myself. If you are interested to solve one of there problems it will
 be especially useful.
 
@@ -189,12 +191,40 @@ let llTableParser = newLL1TableParser(grammar) # TODO add overloaded constructor
 #+end_src
 
 #+begin_src nim
+let tree1 = @["hello", "!!", "!!", "!!", "world"].exampleParse:
+  A ::= "hello" & *(B) & "world"
+  B ::= "!!"
+
 echo "Recursive descent tree"
-echo ll1RecParser.parse(@["hello", "hello", "hello"]).treeRepr()
+echo tree1.treeRepr()
 
 echo "Table-driven parser tree"
-echo llTableParser.parse(@["hello", "hello", "hello"]).treeRepr()
+let tree2 = @["hello", "!!", "!!", "!!", "world"].exampleParseBNF_noFix:
+  A ::= "hello" & *(B) & "world"
+  B ::= "!!"
+
+echo tree2.treeRepr()
 #+end_src
+
+#+RESULTS:
+#+begin_example
+Recursive descent tree
++-> A
+    +-> 'hello'
+    +-> [ [ ... ] ]
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    +-> 'world'
+Table-driven parser tree
++-> A
+    +-> 'hello'
+    +-> [ [ ... ] ]
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    |   +-> B +-> '!!'
+    +-> [ [ ... ] ]
+#+end_example
 
 * DSL error reporting
 

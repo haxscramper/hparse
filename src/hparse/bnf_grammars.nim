@@ -23,6 +23,8 @@ type
     bnfConcat
     bnfAlternative
 
+  FixupFlag* = distinct bool
+
   BnfNTerm* = object
     case generated*: bool
       of true:
@@ -38,6 +40,10 @@ type
         nterm*: BnfNterm
       of true:
         tok*: ExpectedToken[C, L] ## Token kind
+
+let fixupAllow: FixupFlag = FixupFlag(true)
+let fixupDisallow: FixupFlag = FixupFlag(false)
+# func `==`(l, r: FixupFlag): bool = (l.bool == r.bool)
 
 #*************************************************************************#
 #***********************  Rule production symbols  ***********************#
@@ -238,7 +244,11 @@ func subrules*[C, L](patt: Patt[C, L]): seq[Patt[C, L]] =
 func isNested*[C, L](patt: Patt[C, L]): bool =
   patt.kind in {pkAlternative .. pkOneOrMore}
 
-func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
+func toBNF*[C, L](
+  patt: Patt[C, L],
+  parent: string,
+  idx: seq[int],
+  dofixup: FixupFlag): tuple[
     toprule: BnfPatt[C, L],
     newrules: seq[BnfRule[C, L]]] =
 
@@ -262,7 +272,8 @@ func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
       var newsubp: seq[BnfPatt[C, L]]
 
       for pos, subp in patt.patts:
-        let (bnfPatt, bnfRules) = subp.toBNF(parent, idx = idx & @[pos])
+        let (bnfPatt, bnfRules) = subp.toBNF(
+          parent, idx = idx & @[pos], dofixup = dofixup)
         newsubp.add bnfPatt
         result.newrules &= bnfRules
 
@@ -280,7 +291,8 @@ func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
       let newsym = makeBnfNterm(parent, idx)
       result.toprule = BnfPatt[C, L](
         flat: false, kind: bnfNterm, nterm: newsym)
-      let (body, subnewrules) = toBNF(patt.opt, parent, idx & @[0])
+      let (body, subnewrules) = toBNF(
+        patt.opt, parent, idx & @[0], dofixup = dofixup)
       result.newrules = @[
         BnfRule[C, L](
           nterm: newsym,
@@ -290,10 +302,16 @@ func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
             patts: @[
               BnfPatt[C, L](flat: false, kind: bnfEmpty),
               BnfPatt[C, L](flat: false, kind: bnfConcat,
-                            actions: {
-                              0 : patt.action,
-                              1 : taSpliceDiscard
-                            }.toTable(),
+                            actions:
+                              block:
+                                if dofixup.bool:
+                                  {
+                                    0 : patt.action,
+                                    1 : taSpliceDiscard
+                                  }.toTable()
+                                else:
+                                  { 0 : patt.action }.toTable()
+                            ,
                             patts: @[
                 body,
                 BnfPatt[C, L](flat: false, kind: bnfNterm, nterm: newsym)
@@ -311,7 +329,8 @@ func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
       # one-or-more to bnf
       let newsym = makeBnfNterm(parent, idx)
       result.toprule = BnfPatt[C, L](flat: false, kind: bnfNterm, nterm: newsym)
-      let (body, subnewrules) = toBNF(patt.opt, parent, idx & @[0])
+      let (body, subnewrules) = toBNF(
+        patt.opt, parent, idx & @[0], dofixup)
       result.newrules = @[
         BnfRule[C, L](
           nterm: newsym,
@@ -328,7 +347,8 @@ func toBNF*[C, L](patt: Patt[C, L], parent: string, idx: seq[int]): tuple[
     of pkOptional:
       let newsym = makeBnfNterm(parent, idx)
       result.toprule = BnfPatt[C, L](flat: false, kind: bnfNterm, nterm: newsym)
-      let (body, subnewrules) = toBNF(patt.opt, parent, idx & @[0])
+      let (body, subnewrules) = toBNF(
+        patt.opt, parent, idx & @[0], dofixup = dofixup)
       result.newrules = @[
         BnfRule[C, L](
           nterm: newsym,
@@ -386,9 +406,11 @@ func flatten[C, L](patt: BnfPatt[C, L]): seq[RuleProd[C, L]] =
 func toBNF*[C, L](
   rule: Rule[C, L],
   noAltFlatten: bool = false,
-  renumerate: bool = false): seq[BnfRule[C, L]] =
+  renumerate: bool = false,
+  dofixup: FixupFlag = fixupAllow): seq[BnfRule[C, L]] =
   # debugecho rule.exprRepr()
-  let (top, newrules) = rule.patts.toBnf(rule.nterm, @[0])
+  let (top, newrules) = rule.patts.toBnf(
+    rule.nterm, @[0], dofixup = dofixup)
   if noAltFlatten:
     block:
       let topflat = top.flatten()
@@ -421,10 +443,15 @@ func toBNF*[C, L](
         tmp.nterm.idx = @[idx]
         result[idx] = tmp
 
-func toBNF*[C, L](grammar: Grammar[C, L]): BnfGrammar[C, L] =
+func toBNF*[C, L](
+  grammar: Grammar[C, L], dofixup: FixupFlag = fixupAllow): BnfGrammar[C, L] =
   mixin toBNF
   result = makeGrammar(
-    grammar.rules.mapIt(it.toBNF(noAltFlatten = true, renumerate = false)).concat())
+    grammar.rules.mapIt(it.toBNF(
+      noAltFlatten = true,
+      renumerate = false,
+      dofixup = dofixup
+    )).concat())
 
   result.start = BnfNterm(generated: false, name: grammar.start)
   # debugecho result.exprRepr()

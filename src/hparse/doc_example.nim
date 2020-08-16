@@ -8,7 +8,8 @@ import grammar_dsl,
   lexer,
   parse_primitives,
   bnf_grammars,
-  llstar_gen
+  llstar_gen,
+  ll1_table
 
 
 export grammar_dsl,
@@ -21,7 +22,8 @@ export grammar_dsl,
   sets,
   sequtils,
   llstar_gen,
-  options
+  options,
+  ll1_table
 
 template exampleGrammar*(body: untyped): untyped =
   block:
@@ -38,17 +40,44 @@ template exampleParser*(body: untyped): untyped =
   newLLStarParser[NoCategory, string, void]:
     body
 
-template exampleParse*(str: string, grammar: untyped): untyped =
-  const name = block:
-    initGrammarCalls(NoCategory, string)
-    initGrammarImplCat(NoCategory, grammar)
-
-  let parser = exampleParser(name)
+template exampleStream*(str: typed): untyped =
   var stream =
     when str is string:
       str.mapIt($it).filterIt(it == " ").makeTokens().makeStream()
     else:
       str.makeTokens().makeStream()
 
+  stream
+
+
+template exampleParse*(str: typed, grammar: untyped): untyped =
+  const name = block:
+    initGrammarCalls(NoCategory, string)
+    initGrammarImplCat(NoCategory, grammar)
+
+  let parser = exampleParser(name)
+  var stream = exampleStream(str)
+  let tree = parser.parse(stream)
+  tree
+
+
+
+template exampleParseBNF*(str: typed, grammar: untyped): untyped =
+  let name = block:
+    initGrammarCalls(NoCategory, string)
+    initGrammarImplCat(NoCategory, grammar)
+
+  let parser = newLL1Tableparser[NoCategory, string](name.toGrammar())
+  var stream = exampleStream(str)
+  let tree = parser.parse(stream)
+  tree
+
+template exampleParseBNF_noFix*(str: typed, grammar: untyped): untyped =
+  let name = block:
+    initGrammarCalls(NoCategory, string)
+    initGrammarImplCat(NoCategory, grammar)
+
+  let parser = newLL1Tableparser[NoCategory, string](name.toGrammar())
+  var stream = exampleStream(str)
   let tree = parser.parse(stream)
   tree

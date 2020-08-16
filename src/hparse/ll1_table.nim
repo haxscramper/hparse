@@ -191,8 +191,9 @@ func getGrammar*[C, L](
 
 proc newLL1TableParser*[C, L](
   grammar: Grammar[C, L],
-  retainGenerated: bool = false): LL1TableParser[C, L] =
-  let bnfg = grammar.toBNF()
+  retainGenerated: bool = false,
+  dofixup: bool = true): LL1TableParser[C, L] =
+  let bnfg = grammar.toBNF(dofixup = FixupFlag(dofixup))
   let tmp = makeLL1TableParser(bnfg)
   result.parseTable = tmp.table
   result.nullable = tmp.nullable

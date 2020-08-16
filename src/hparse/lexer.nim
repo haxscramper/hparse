@@ -136,7 +136,16 @@ proc reset*[Tok](ts: var TokStream[Tok]): Tok =
 
 func exprRepr*[Tok](ts: TokStream[Tok]): string =
   if ts.buffer.len < 4:
-    "@" & $ts.currPos & " [" &
+    return "@" & $ts.currPos & " [" &
       ts.buffer.mapIt(it.exprRepr()).join(", ") & "]"
   else:
-    ts.buffer.mapIt(it.exprRepr()).join("\n")
+    for idx, tok in ts.buffer:
+      if idx != 0:
+        result &= "\n"
+
+      result &= tok.exprRepr()
+
+      if idx == ts.currPos:
+        result &= " <- "
+
+    # ts.buffer.mapIt(it.exprRepr()).join("\n")

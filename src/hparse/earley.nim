@@ -293,7 +293,7 @@ func parseTree[C, L, I](gr: BnfGrammar[C, L],
 #*********************************  API  *********************************#
 #*************************************************************************#
 
-func newEarleyParser*[C, L](grammar: Grammar[C, L]): EarleyParser[C, L] =
+proc newEarleyParser*[C, L](grammar: Grammar[C, L]): EarleyParser[C, L] =
   let bnfg = grammar.toBNF()
   result.grammar = bnfg
   result.start = bnfg.start
