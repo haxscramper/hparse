@@ -625,6 +625,9 @@ func exprRepr*[C, L](exp: ExpectedToken[C, L],
     else:
       fmt("({exp.cat} _)")
 
+func lispRepr*[C, L, I](tk: Token[C, L, I]): string =
+  tk.exprRepr()
+
 func getLinePos*[C, L, I](tok: Token[C, L, I]): LinePosInfo =
   getLinePos(tok.info)
 

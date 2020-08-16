@@ -193,6 +193,7 @@ proc newLL1TableParser*[C, L](
   grammar: Grammar[C, L],
   retainGenerated: bool = false,
   dofixup: bool = true): LL1TableParser[C, L] =
+  # echov dofixup
   let bnfg = grammar.toBNF(dofixup = FixupFlag(dofixup))
   let tmp = makeLL1TableParser(bnfg)
   result.parseTable = tmp.table
@@ -207,6 +208,16 @@ type
     expected: seq[GSym[C, L]]
     acts: ActLookup
     elems: seq[ParseTree[C, L, I]]
+
+func exprRepr[C, L, I](tp: TermProgress[C, L, I]): string =
+  mixin joinw
+  &"""
+{tp.nterm.exprRepr()}
+expected: {tp.expected.mapIt(it.exprRepr()).joinw()}
+progress: [{tp.elems.len}/{tp.expected.len}]
+subtrees:
+{tp.elems.mapIt(it.lispRepr(discardEmpty = false)).joinl()}
+"""
 
 func canFold[C, L, I](lst: TermProgress[C, L, I],
                       forcefold: bool,
@@ -228,11 +239,14 @@ proc parse*[C, L, I](
 
   template foldstack(): untyped =
     let forcefold = toks.finished()
-    if forcefold and not canFold(ppr.last(), forcefold, parser.nullable):
-      echo "Unexpected EOF"
+    # echo "forcefold: ", forcefold
+    # if forcefold and not canFold(ppr.last(), forcefold, parser.nullable):
+    #   echo "Unexpected EOF"
 
-    while (ppr.len > 0) and (ppr.last().canFold(forcefold, parser.nullable)):
+    while (ppr.len > 0) and
+          (ppr.last().canFold(forcefold, parser.nullable)):
       let last = ppr.pop()
+      # echo "folding ", last.exprRepr()
       if ppr.len > 0:
         ppr.last().elems.add(
           if last.nterm.generated:
@@ -243,27 +257,38 @@ proc parse*[C, L, I](
           else:
             newTree(last.nterm.name, last.elems, last.acts))
       else:
+        # echo "returning final ", last.elems.len
         return newTree(last.nterm.name, last.elems)
 
 
   while true:
     let top: GSym[C, L] = stack.pop()
     if top.isTerm:
+      # echo "top is term"
       assertToken(top.tok, curr)
       ppr.last().elems.add newTree(curr)
       if toks.finished():
         foldstack()
       else:
         curr = toks.next()
+        # echo "newtok ", curr.exprRepr()
     else:
+      # echo "rule ", top.nterm.exprRepr()
       let rule: RuleId = parser.parseTable.getRule(top.nterm, curr)
+      # echo "next rule: ", rule.exprRepr()
       let stackadd = parser.grammar.getProductions(rule)
-      ppr.add TermProgress[C, L, I](
-        nterm: rule.head,
-        expected: stackadd.symbols,
-        acts: stackadd.getActions()
-      )
 
-      stack &= stackadd.reversed()
+      # echov stackadd.len
+      if stackadd.len == 0:
+        foldstack()
+      else:
+        ppr.add TermProgress[C, L, I](
+          nterm: rule.head,
+          expected: stackadd.symbols,
+          acts: stackadd.getActions()
+        )
+
+        stack &= stackadd.reversed()
+
 
     foldstack()

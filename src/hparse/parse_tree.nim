@@ -382,11 +382,7 @@ func lispReprImpl*[C, L, I](
   kindPref: string, discardEmpty: bool): seq[string] =
   case node.kind:
     of ptkToken:
-      var kindStr = $node.tok.cat
-      if kindStr.startsWith(kindPref):
-        kindStr = kindStr[kindPref.len .. ^1]
-
-      @[ fmt("({kindStr} '{node.tok}')") ]
+      @[ node.tok.lispRepr() ]
     else:
       if discardEmpty and (node.getSubnodes().len == 0):
         @[]

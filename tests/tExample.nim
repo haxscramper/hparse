@@ -1,5 +1,6 @@
 import sugar, strutils, sequtils, strformat
 import hparse/doc_example
+import hmisc/helpers
 import unittest
 
 suite "Grammar exampl":
@@ -10,8 +11,6 @@ suite "Grammar exampl":
 
     var toks = @[
       "hello", "!!", "!!", "!!", "world"].makeTokens().makeStream()
-
-    echo toks.exprRepr()
 
     let grammarVal =
       block:
@@ -32,21 +31,23 @@ suite "Grammar exampl":
     echo tree1.treeRepr()
     echo "---\n\n"
 
-    # echo toks.exprRepr()
     toks.revertTo(0)
 
-
     echo "Table-driven parser tree without structure fixup"
-    let parser2 = newLL1TableParser(grammarVal, dofixup = false)
+    let parser2 = newLL1TableParser(
+      grammarVal,
+      dofixup = false,
+      retainGenerated = true
+    )
     let tree2 = parser2.parse(toks)
     echo tree2.treeRepr()
     echo "---\n\n"
 
-    echo toks.exprRepr()
+
     toks.revertTo(0)
 
     echo "Table-driven parser tree with fixup"
     let parser3 = newLL1TableParser(grammarVal, dofixup = true)
     let tree3 = parser3.parse(toks)
-    echo tree2.treeRepr()
+    echo tree3.treeRepr()
     echo "---\n\n"

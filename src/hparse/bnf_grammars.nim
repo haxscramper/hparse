@@ -304,13 +304,10 @@ func toBNF*[C, L](
               BnfPatt[C, L](flat: false, kind: bnfConcat,
                             actions:
                               block:
-                                if dofixup.bool:
-                                  {
-                                    0 : patt.action,
-                                    1 : taSpliceDiscard
-                                  }.toTable()
-                                else:
-                                  { 0 : patt.action }.toTable()
+                                var res = { 0 : patt.action }.toTable()
+                                if bool(dofixup):
+                                  res[1] = taSpliceDiscard
+                                res
                             ,
                             patts: @[
                 body,
