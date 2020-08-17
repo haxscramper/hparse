@@ -283,7 +283,7 @@ Some work has been done on adding ~SLR~ and ~Earley~ parser.
 
 Parser generator has relatively clean and documented internal API,
 designed to make implementation of new algorithms as simple as
-possible (lost of details are abstracted).
+possible (most of details are abstracted).
 
 ** Contribution
 
@@ -305,7 +305,8 @@ algorithm parts, except for tree construction itself. My very limited
 knowled of =ocaml= wasn't enough to fully rewrite it in =nim=.
 Standalone rewrite is in [[file:src/hparse/earley_parser.nim]] - it does
 not depend on any other library parts (can copy-paste on playground
-and it will run just fine).
+and it will run just fine). The only thing missing is parse forest
+construction.
 
 This parser algorithm is much more powerful compared to recursive
 descent and even shift-reduce parsers. It can handle left recursion,
@@ -325,12 +326,6 @@ other one requires conversion from EBNF to BNF (implemented, tested).
 The problem is - this trasnformation changes shape of the parsed tree.
 For example ~A ::= *(E)~ is converted to ~A ::= E1~ and ~E1 ::= Ɛ | E
 E1~ - recursion is replaced with iteration.
-
-#TODO add grammar transformation example
-#TODO add parsed tree.
-
-#TODO IDEA add support for ~block~ sessions - code will be wrapped
-into ~block:~ (or alternative for other programming language).
 
 #+caption: Comparison of ~LL(*)~ and table-driven LL(1) (w/o fixup)
 #+begin_src nim :exports both
@@ -451,51 +446,6 @@ something like ~@*(@{!',' & <Element>})}~ to BNF it gets flattened
 out, and it is not clear how to first splice things in ~!',' &
 <Element>~, and then splice it again.
 
-
-# #+caption: Grammar
-# #+begin_src nim
-# exampleConstGrammar:
-#   A ::= *("hello")
-
-# let llRecParser = newLL1RecursiveParser(grammar)
-# let llTableParser = newLL1TableParser(grammar) # TODO add overloaded constructor for example
-# #+end_src
-
-#+begin_src nim :expors both
-let tree1 = @["hello", "!!", "!!", "!!", "world"].exampleParse:
-  A ::= "hello" & *(B) & "world"
-  B ::= "!!"
-
-echo "Recursive descent tree"
-echo tree1.treeRepr()
-
-echo "Table-driven parser tree"
-let tree2 = @["hello", "!!", "!!", "!!", "world"].exampleParseBNF_noFix:
-  A ::= "hello" & *(B) & "world"
-  B ::= "!!"
-
-echo tree2.treeRepr()
-#+end_src
-
-#+RESULTS:
-#+begin_example
-Recursive descent tree
-+-> A
-    +-> 'hello'
-    +-> [ [ ... ] ]
-    |   +-> B +-> '!!'
-    |   +-> B +-> '!!'
-    |   +-> B +-> '!!'
-    +-> 'world'
-Table-driven parser tree
-+-> A
-    +-> 'hello'
-    +-> [ [ ... ] ]
-    |   +-> B +-> '!!'
-    |   +-> B +-> '!!'
-    |   +-> B +-> '!!'
-    +-> 'world'
-#+end_example
 
 * DSL error reporting
 

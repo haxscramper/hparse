@@ -148,3 +148,24 @@ suite "Compare parsers table vs codegen LL(1)":
       List ::= !"[" & Elements & !"]"
       Elements ::= Element & @*(@(!"," & Element))
       Element ::= "i" | List
+
+  test "Predicate token":
+    func makeExpTokenPred(
+      a: string, valset: set[char], b: string
+         ): ExpectedToken[NoCategory, string] =
+
+      makeExpTokenPred[NoCategory, string](
+        catNoCategory,
+        &"[{valset}]",
+        proc(str: string): bool =
+          for ch in str:
+            if ch notin valset:
+              return false
+          return true
+       )
+
+
+    testparse(@["90", "---", "**"]) do:
+      A ::= Ints | Punct
+      Ints ::= [[ {'0' .. '9'} ]]
+      Punct ::= [[ {'-', '*', ','} ]]

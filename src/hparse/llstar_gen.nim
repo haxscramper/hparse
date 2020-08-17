@@ -69,7 +69,7 @@ proc makeParseBlock[C, L](patt: Patt[C, L], resName: string = "res"): NimNode
 proc makeTermBlock[C, L](term: Patt[C, L]): NimNode =
   assert term.kind == pkTerm
   let
-    tokIdent = newLit(term.tok)
+    tokIdent = toInitCalls(term.tok)
     tokType = ident "Tok"
     toksIdent = ident "toks"
 
@@ -423,6 +423,7 @@ template newLLStarParser*[C, L, I](
           newCall("initLLStarParser", ident "cb")
       )
 
+      # echo result.toStrLit()
       # colorPrint(result, doPrint = false)
 
     buildParser()

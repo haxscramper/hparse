@@ -243,7 +243,7 @@ proc makeAltBlock[C, L](alt: CompPatt[C, L], sets: NTermSets[C, L]): NimNode =
 proc makeTermBlock[C, L](term: CompPatt[C, L]): NimNode =
   assert term.kind == pkTerm
   let
-    tokIdent = newLit(term.tok)
+    tokIdent = toInitCalls(term.tok)
     tokType = ident "Tok"
     toksIdent = ident "toks"
   return quote do:

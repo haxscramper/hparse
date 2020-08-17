@@ -17,6 +17,7 @@ type
     ptkTreeAction
     ptkPrefix
     ptkInfix
+    ptkPredicate
     ptkCall
 
   GenConf = object
@@ -41,6 +42,11 @@ type
         elems: seq[PattTree]
       of ptkCall:
         expr: NimNode
+      of ptkPredicate:
+        defaultCat: bool
+        tokenCat: string
+        predBodyStr: string
+        predBody: NimNode
 
 func `==`*(lhs, rhs: PattTree): bool =
   lhs.kind == rhs.kind and (
@@ -56,8 +62,11 @@ func `==`*(lhs, rhs: PattTree): bool =
         subnodesEq(lhs, rhs, elems)
       of ptkTokenComposed:
         (lhs.catVal == rhs.catVal) and (lhs.lexVal == rhs.lexVal)
-      of ptkCall:
-        (lhs.expr == rhs.expr)
+      of ptkCall: (lhs.expr == rhs.expr)
+      of ptkPredicate:
+        (lhs.predBodyStr == rhs.predBodyStr) and
+        (lhs.tokenCat == rhs.tokenCat) and
+        (lhs.defaultCat == rhs.defaultCat)
   )
 
 func newPattTree(infix: string, elems: seq[PattTree]): PattTree =
@@ -123,14 +132,44 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
     of nnkPrefix, nnkDotExpr:
       flattenPatt(node, conf)
     of nnkBracket:
-      if node.len > 1:
-        raiseCodeError(
-          node[1], "Expected one element for optional brace",
-          "Use `&` for concatenation")
+      if node[0].kind == nnkBracket:
+        if node[0].len > 1:
+          raiseCodeError(node[0][1],
+                         "Expected one element for predicate token")
 
-      PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
-        flattenPatt(node[0], conf)
-      ])
+        let impl = node[0][0]
+        case impl.kind:
+          of nnkInfix, nnkCall, nnkDotExpr:
+            let cbImpl = quote do:
+              (
+                block:
+                  proc tmp(it: LexType): bool {.noSideEffect.} =
+                    let it {.inject.} = it
+                    `impl`
+
+                  tmp
+              )
+
+            PattTree(
+              kind: ptkPredicate,
+              predBody: cbImpl,
+              defaultCat: true,
+              predBodyStr: impl.toStrLit().strVal())
+          else:
+            PattTree(
+              kind: ptkPredicate,
+              predBody: impl,
+              defaultCat: true,
+              predBodyStr: impl.toStrLit().strVal())
+      else:
+        if node.len > 1:
+          raiseCodeError(
+            node[1], "Expected one element for optional brace",
+            "Use `&` for concatenation")
+
+        PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
+          flattenPatt(node[0], conf)
+        ])
     of nnkCurly:
       if node.len > 1:
         raiseCodeError(node[1], "Expected one element for subrule",
@@ -176,14 +215,17 @@ proc flattenPatt(node: NimNode, conf: GenConf): PattTree =
     of nnkPar:
       result = node[0].flattenPatt(conf)
     of nnkBracket:
-      if node.len > 1:
-        raiseCodeError(
-          node[1], "Expected one element for optional brace",
-          "Use `&` for concatenation")
+      if node[0].kind == nnkBracket:
+        result = newPattTree(node, conf)
+      else:
+        if node.len > 1:
+          raiseCodeError(
+            node[1], "Expected one element for optional brace",
+            "Use `&` for concatenation")
 
-      result = PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
-        node[0].flattenPatt(conf)
-      ])
+        result = PattTree(kind: ptkPrefix, prefix: "?", elementItem: @[
+          node[0].flattenPatt(conf)
+        ])
     of nnkDotExpr:
       assertNodeIt(node[1], node[1].kind == nnkIdent, "Expected identifier")
       let nodeStr = node[1].strVal().toCatPrefix(conf.catPrefix)
@@ -199,6 +241,21 @@ proc toCalls(patt: PattTree): NimNode =
   case patt.kind:
     of ptkStrLiteral:
       newCall("dslTok", newLit(patt.strVal))
+    of ptkPredicate:
+      if patt.defaultCat:
+        newCall("tok") do:
+          newCall("makeExpTokenPred",
+                  patt.predBodyStr.newLit(),
+                  patt.predBody,
+                  patt.predBody.toStrLit())
+      else:
+        newCall("tok") do:
+          newCall("makeExpTokenPred",
+                  ident patt.tokenCat,
+                  patt.predBodyStr.newLit(),
+                  patt.predBody,
+                  patt.predBody.toStrLit())
+
     of ptkTokenComposed:
       newCall("dslTok", ident(patt.catVal), patt.lexVal)
     of ptkCall:
@@ -276,17 +333,10 @@ proc generateGrammar*(body: NimNode, catPrefix: string = ""): NimNode =
 
   # echo result.treeRepr()
   # echov catPrefix
-  # echo result.toStrLit()
+  echo result.toStrLit()
 
 func tokMaker*[C, L](cat: C): Patt[C, L] = grammars.tok[C, L](cat)
 
-func getEnumPref*(en: NimNode): string =
-  let impl = en.getTypeImpl()
-  # debugecho impl.treeRepr()
-  let name = impl[1].strVal()
-  let pref = name.parseUntil(result, {'A' .. 'Z', '0' .. '9'})
-
-func isEnum*(en: NimNode): bool = en.getTypeImpl().kind == nnkEnumTy
 
 macro initGrammarImpl*(body: untyped): untyped =
   generateGrammar(body)
@@ -300,6 +350,7 @@ macro initGrammarImplCat*(cat: typed, body: untyped): untyped =
 template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
   # mixin makeExpectedToken
+  type LexType = lexT
   when catT is void:
     proc dslTok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
   else:
@@ -321,6 +372,11 @@ template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
 
   when not (catT is void):
     proc dslTok(cat: catT): Patt[catT, lexT] = tokMaker[catT, lexT](cat)
+
+  template makeExpTokenPred(
+    lexStr: string, body: LexPredicate[lexT]): untyped =
+    var cat: catT
+    makeExpTokenPred[catT, lexT](cat, lexStr, body, lexImplLiteral)
 
 
 template initGrammar*[C, L](body: untyped): untyped =

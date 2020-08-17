@@ -41,6 +41,7 @@ type
       of etokEOF:
         nil
 
+  LexPredicate*[L] = proc(l: L): bool {.noSideEffect.}
   ExpectedToken*[C, L] = object
     ## Description of token to expect during parsing. In order for
     ## input token to match category MUST be identical (equality
@@ -55,7 +56,13 @@ type
         case hasLex*: bool ## Whether or not lexeme value should be
                            ## considered
           of true:
-            lex*: L ## Expected lexeme value
+            case isPredicate*: bool
+              of false:
+                lex*: L ## Expected lexeme value
+              of true:
+                lexPred*: LexPredicate[L]
+                lexPredRepr*: string
+                lexPredLiteral*: string
           of false:
             nil
       of etokEOF:
@@ -68,18 +75,88 @@ type
 
 #============================  Constructors  =============================#
 
+func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
+  if etok.hasLex:
+    if etok.isPredicate:
+      result = mkCallNode(
+        "makeExpToken",
+        @[
+          ident($etok.cat),
+          newLit(etok.lexPredRepr),
+          parseExpr(etok.lexPredLiteral),
+          newLit("")
+        ]
+      )
+
+
+    else:
+      result = mkCallNode(
+        "makeExpToken",
+        @[ ident($etok.cat), newLit(etok.lex) ])
+  else:
+    result = mkCallNode(
+      "makeExpToken",
+      @[($typeof(C)).mkNType(), ($typeof(L)).mkNType()],
+      @[ident($etok.cat)])
+
+  # echov result.treeRepr()
+
+
+
 func makeExpToken*[C, L](category: C, lexeme: L): ExpectedToken[C, L] =
   ## Create regular expected token with category and lexeme
-  ExpectedToken[C, L](kind: etokRegular, cat: category,
-                      lex: lexeme, hasLex: true)
+  ExpectedToken[C, L](
+    kind: etokRegular,
+    cat: category,
+    lex: lexeme,
+    hasLex: true,
+    isPredicate: false
+  )
 
 func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
   ## Create regular expected token with empty lexeme value
   ExpectedToken[C, L](kind: etokRegular, cat: category, hasLex: false)
 
+func makeExpTokenPred*[C, L](
+  cat: C,
+  lexPred: LexPredicate[L],
+  lexPredRepr: string,
+  lexImplLiteral: string): ExpectedToken[C, L] =
+  ExpectedToken[C, L](
+    kind: etokRegular,
+    cat: cat,
+    hasLex: true,
+    isPredicate: true,
+    lexPred: lexPred,
+    lexPredRepr: lexPredRepr,
+    lexPredLiteral: lexImplLiteral
+  )
+
+func makeExpTokenPred*[C, L](
+  cat: C,
+  lexPredRepr: string,
+  lexPred: LexPredicate[L]): ExpectedToken[C, L] =
+  ExpectedToken[C, L](
+    kind: etokRegular,
+    cat: cat,
+    hasLex: true,
+    isPredicate: true,
+    lexPred: lexPred,
+    lexPredRepr: lexPredRepr
+  )
+
+# template makeExpTokenPred*[C, L](
+#   cat: C, body: ): ExpectedToken[C, L] =
+#   makeExpTokenPred(cat,
+#     proc(it: L): bool =
+#       let it {.inject.} = it
+#   )
+
+
 func makeExpNoCat*[L](l: L): ExpectedToken[NoCategory, L] =
   ## Create expected token from lexeme, using `NoCategory` as category
-  ExpectedToken[NoCategory, L](kind: etokRegular, hasLex: true, lex: l)
+  ExpectedToken[NoCategory, L](
+    kind: etokRegular, hasLex: true, lex: l, isPredicate: false)
 
 func makeExpEOFToken*[C, L](): ExpectedToken[C, L] =
   ## Create `EOF` token

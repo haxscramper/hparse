@@ -68,6 +68,16 @@ suite "Tree actions examples":
       A ::= "-" & { "z" & "e" }
 
 
+  test "Predicates for tokens":
+    echo eparse(@["@ident", "#comment", "@ident"]) do:
+      A ::= B | C
+      B ::= [[ it.startsWith("@") ]]
+      C ::= [[ true ]]
+
+    echo eparse(@["90", "---", "**"]) do:
+      A ::= Ints | Punct
+      Ints ::= [[ {'0' .. '9'} ]]
+      Punct ::= [[ {'-', '*', ','} ]]
 
   test "Devnotes example 1":
     let nt = nterm[NoCategory, string]
