@@ -92,6 +92,7 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
       debugecho "\e[32mRESULT STR VALUE ====\e[39m\n", result.toStrLit().strVal()
       debugecho result.treeRepr()
 
+      result = parseStmt(etok.lexPredLiteral)
     else:
       result = mkCallNode(
         "makeExpToken",
@@ -120,7 +121,7 @@ func makeExpToken*[C, L](category: C): ExpectedToken[C, L] =
   ## Create regular expected token with empty lexeme value
   ExpectedToken[C, L](kind: etokRegular, cat: category, hasLex: false)
 
-func makeExpTokenPred*[C, L](
+func makeExpTokenPredBuilder*[C, L](
   cat: C,
   lexPred: LexPredicate[L],
   lexPredRepr: string,

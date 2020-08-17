@@ -43,10 +43,7 @@ type
       of ptkCall:
         expr: NimNode
       of ptkPredicate:
-        defaultCat: bool
-        tokenCat: string
-        predBodyStr: string
-        predBody: NimNode
+        expBuilder: NimNode
 
 func `==`*(lhs, rhs: PattTree): bool =
   lhs.kind == rhs.kind and (
@@ -64,9 +61,10 @@ func `==`*(lhs, rhs: PattTree): bool =
         (lhs.catVal == rhs.catVal) and (lhs.lexVal == rhs.lexVal)
       of ptkCall: (lhs.expr == rhs.expr)
       of ptkPredicate:
-        (lhs.predBodyStr == rhs.predBodyStr) and
-        (lhs.tokenCat == rhs.tokenCat) and
-        (lhs.defaultCat == rhs.defaultCat)
+        lhs.expBuilder == rhs.expBuilder
+        # (lhs.predBodyStr == rhs.predBodyStr) and
+        # (lhs.tokenCat == rhs.tokenCat) and
+        # (lhs.defaultCat == rhs.defaultCat)
   )
 
 func newPattTree(infix: string, elems: seq[PattTree]): PattTree =
@@ -138,29 +136,44 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
                          "Expected one element for predicate token")
 
         let impl = node[0][0]
-        case impl.kind:
-          of nnkInfix, nnkCall, nnkDotExpr:
-            let cbImpl = quote do:
-              (
-                block:
-                  proc tmp(it: LexType): bool {.noSideEffect.} =
-                    let it {.inject.} = it
-                    `impl`
+        let tokBuilder =
+          case impl.kind:
+            of nnkInfix, nnkCall, nnkDotExpr:
+              let cbImpl = quote do:
+                (
+                  block:
+                    proc tmp(it: LexType): bool {.noSideEffect.} =
+                      let it {.inject.} = it
+                      `impl`
 
-                  tmp
+                    tmp
+                )
+
+              var tmp = newCall(
+                "makeExpTokenPredBuilder",
+                ident("defaultCategory"),
+                impl.toStrLit(),
+                cbImpl,
+                cbImpl.toStrLit()
               )
 
-            PattTree(
-              kind: ptkPredicate,
-              predBody: cbImpl,
-              defaultCat: true,
-              predBodyStr: impl.toStrLit().strVal())
-          else:
-            PattTree(
-              kind: ptkPredicate,
-              predBody: impl,
-              defaultCat: true,
-              predBodyStr: impl.toStrLit().strVal())
+
+              tmp[4] = tmp.toStrLit()
+              # echov tmp.toStrLit()
+              tmp
+            else:
+              let impl = quote do:
+                makeExpTokenPredUsr(defaultCategory, `impl`)
+
+              let strlit = impl.toStrLit()
+
+              quote do:
+                block:
+                  var tmp = `impl`
+                  tmp.lexPredLiteral = `strlit`
+                  tmp
+
+        PattTree(kind: ptkPredicate, expBuilder: tokBuilder)
       else:
         if node.len > 1:
           raiseCodeError(
@@ -242,21 +255,7 @@ proc toCalls(patt: PattTree): NimNode =
     of ptkStrLiteral:
       newCall("dslTok", newLit(patt.strVal))
     of ptkPredicate:
-      if patt.defaultCat:
-        newCall("tok") do:
-          newCall("makeExpTokenPred",
-                  ident("defaultCatValue"),
-                  patt.predBodyStr.newLit(),
-                  patt.predBody,
-                  patt.predBody.toStrLit())
-      else:
-        newCall("tok") do:
-          newCall("makeExpTokenPred",
-                  ident patt.tokenCat,
-                  patt.predBodyStr.newLit(),
-                  patt.predBody,
-                  patt.predBody.toStrLit())
-
+      newCall("tok", patt.expBuilder)
     of ptkTokenComposed:
       newCall("dslTok", ident(patt.catVal), patt.lexVal)
     of ptkCall:
@@ -334,7 +333,9 @@ proc generateGrammar*(body: NimNode, catPrefix: string = ""): NimNode =
 
   # echo result.treeRepr()
   # echov catPrefix
-  echo result.toStrLit()
+  # echo result.toStrLit()
+  # for val in result:
+  #   val[1].pprintCalls(0)
 
 func tokMaker*[C, L](cat: C): Patt[C, L] = grammars.tok[C, L](cat)
 
@@ -352,12 +353,12 @@ template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
   # mixin makeExpectedToken
   type LexType = lexT
-  var defaultCatValue: catT
+  var defaultCategory: catT
   when catT is void:
     proc dslTok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
   else:
     proc dslTok(lex: string): Patt[catT, lexT] = tok(
-      makeExpToken(defaultCatValue, lex))
+      makeExpToken(defaultCategory, lex))
 
   when not (catT is void) or (lexT is void):
     proc dslTok(cat: catT, lex: lexT): Patt[catT, lexT] = tok(
