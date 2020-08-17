@@ -215,13 +215,15 @@ Parse template is a function that will be executed to produce part of
 the pattern. In this example we generate template rule for
 comma-separated list of strings.
 
-#+begin_src nim
+#+begin_src nim :exports both
   proc csvList(str: string): Patt[NoCategory, string] =
     andP(
       makeExpNoCat(str).tok(),
       zeroP(andP(
-        makeExpNoCat(",").tok(),
-        makeExpNoCat(str).tok())))
+        makeExpNoCat(",").tok().addAction(taDrop),
+        makeExpNoCat(str).tok()
+      ).addAction(taSpliceDiscard)
+      ).addAction(taSpliceDiscard))
 
   echo csvList("@").exprRepr()
 
@@ -229,13 +231,10 @@ comma-separated list of strings.
 #+end_src
 
 #+RESULTS:
-: {'@' & *({',' & '@'})}
+: {'@' & @*(@{!',' & '@'})}
 : +-> A
 :     +-> '@'
-:     +-> [ [ ... ] ]
-:         +-> [ [ ... ] ]
-:             +-> ','
-:             +-> '@'
+:     +-> '@'
 
 DSL syntax is ~%functionName(..<list-of-arguments>..)~. For
 codegen-based parsers (recursive ~LL(1)~ and ~LL(*)~) function MUST be
