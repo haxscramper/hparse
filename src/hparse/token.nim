@@ -88,7 +88,7 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
         ]
       )
 
-      debugecho "\e[31mLEX PRED LITERAL ----\e[39m\n", etok.lexPredLiteral
+      # debugecho "\e[31mLEX PRED LITERAL ----\e[39m\n", etok.lexPredLiteral
 
       result = parseStmt(etok.lexPredLiteral)
     else:
@@ -124,7 +124,7 @@ func makeExpTokenPredBuilder*[C, L](
   lexPred: LexPredicate[L],
   lexPredRepr: string,
   lexImplLiteral: string): ExpectedToken[C, L] =
-  debugecho "\e[33mLEX IMPL LITERAL\e[39m", lexImplLiteral
+  # debugecho "\e[33mLEX IMPL LITERAL\e[39m", lexImplLiteral
   ExpectedToken[C, L](
     kind: etokRegular,
     cat: cat,
@@ -249,11 +249,11 @@ type
 
 #=============================  Predicates  ==============================#
 func contains*[L](lset: LexSet[L], lex: L): bool =
-  debugecho &"Testing if lex {lex} is in set"
+  # debugecho &"Testing if lex {lex} is in set"
   if lex in lset.lexemes:
     true
   else:
-    debugecho "lex set contains ", lset.predicates.len, " predicates"
+    # debugecho "lex set contains ", lset.predicates.len, " predicates"
     for pr in lset.predicates:
       if pr(lex):
         return true
@@ -390,7 +390,7 @@ iterator pairs*[C, L](s: TokSet[C, L]): (C, LexSet[L]) =
 
 #=============================  Predicates  ==============================#
 func contains*[C, L, I](s: TokSet[C, L], tk: Token[C, L, I]): bool =
-  debugecho "Testing if token ", tk.exprRepr(), " is in set"
+  # debugecho "Testing if token ", tk.exprRepr(), " is in set"
   if tk.cat in s.tokens:
     (s.tokens[tk.cat].hasAll) or (tk.lex in s.tokens[tk.cat])
   else:
@@ -568,7 +568,7 @@ func addAlt*[L](ll: var LexLookup[L],
 func addAlt*[L](ll: var LexLookup[L],
                 pr: LexPredicate[L],
                 alt: int): void =
-  debugecho &"adding predicate to alt {alt}"
+  # debugecho &"adding predicate to alt {alt}"
   ll.predicates.add((pr, alt))
 
 func addHasAll*[L](ll: var LexLookup[L],
@@ -698,7 +698,7 @@ func getAlt*[C, L, I](
       else:
         return alts[0]
     else:
-      debugecho &"Lookup contains {lookup[token.cat].predicates.len}"
+      # debugecho &"Lookup contains {lookup[token.cat].predicates.len}"
       for (pr, altid) in lookup[token.cat].predicates:
         return altid
 
@@ -713,7 +713,7 @@ func addAlt*[C, L](tl: var TokLookup[C, L],
                    tok: ExpectedToken[C, L],
                    alt: int,
                    canconflict: bool = false): void =
-  debugecho &"Adding alt {tok.exprRepr()} -> {alt}"
+  # debugecho &"Adding alt {tok.exprRepr()} -> {alt}"
   if tok.cat notin tl.table:
     tl.table[tok.cat] = initLexLookup[L]()
 

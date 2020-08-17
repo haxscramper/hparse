@@ -26,7 +26,7 @@ import unittest
 func `$`[C, L, I](tr: ParseTree[C, L, I]): string = tr.lispRepr()
 
 suite "Parser generation tests":
-  when false:
+  when true:
     type
       En = enum
         en1
@@ -138,7 +138,7 @@ template testparse(tokens, grammarBody: untyped): untyped =
 
 
 suite "Compare parsers table vs codegen LL(1)":
-  when false:
+  when true:
 
     # test "Primitive grammar":
     #   testparse(@["e", "E"]):
@@ -166,15 +166,15 @@ suite "Predicate token":
       catNoCategory,
       &"[{valset}]",
       proc(str: string): bool =
-        debugecho &"testing string {str} in {valset}"
+        # debugecho &"testing string {str} in {valset}"
         for ch in str:
           if ch notin valset:
             return false
         return true
      )
 
-    debugecho "Constructed expected token"
-    debugecho result.exprRepr()
+    # debugecho "Constructed expected token"
+    # debugecho result.exprRepr()
 
 
   let defaultCategory = catNoCategory
