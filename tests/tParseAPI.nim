@@ -1,4 +1,4 @@
-import sugar, strutils, sequtils, strformat, sets, macros
+import sugar, strutils, sequtils, strformat, sets, macros, options
 import hmisc/algo/halgorithm
 import hmisc/types/colorstring
 import ../src/hparse/[
@@ -9,6 +9,7 @@ import ../src/hparse/[
   lexer,
   ll1_gen,
   ll1_table,
+  llstar_gen,
   earley,
   parse_primitives,
   bnf_grammars
@@ -112,7 +113,7 @@ template testparse(tokens, grammarBody: untyped): untyped =
 
   echo "EBNF grammar"
   echo grammarVal.toGrammar().exprRepr()
-  echo grammarVal.toGrammar().toBNF().exprRepr()
+
 
   block:
     let recParser = newLL1RecursiveParser[NoCategory, string, void](
@@ -122,6 +123,9 @@ template testparse(tokens, grammarBody: untyped): untyped =
 
     echo "Recursive tree"
     echo recTree.treeRepr()
+
+  echo "BNF grammar"
+  echo grammarVal.toGrammar().toBNF().exprRepr()
 
   block:
     let tableParser = newLL1TableParser[NoCategory, string](
@@ -154,26 +158,47 @@ suite "Compare parsers table vs codegen LL(1)":
         Element ::= "i" | List
 
 suite "Predicate token":
-  test "Predicate token":
-    func makeExpTokenPredUsr(
-      cat: NoCategory, valset: set[char]
-         ): ExpectedToken[NoCategory, string] =
+  func makeExpTokenPredUsr(
+    cat: NoCategory, valset: set[char]
+       ): ExpectedToken[NoCategory, string] =
 
-      result = makeExpTokenPred[NoCategory, string](
-        catNoCategory,
-        &"[{valset}]",
-        proc(str: string): bool =
-          for ch in str:
-            if ch notin valset:
-              return false
-          return true
-       )
+    result = makeExpTokenPred[NoCategory, string](
+      catNoCategory,
+      &"[{valset}]",
+      proc(str: string): bool =
+        debugecho &"testing string {str} in {valset}"
+        for ch in str:
+          if ch notin valset:
+            return false
+        return true
+     )
 
-      # result.lexPredLiteral = newLit(valset).toStrLit().strVal()
+    debugecho "Constructed expected token"
+    debugecho result.exprRepr()
 
-    let defaultCategory = catNoCategory
 
-    testparse(@["90", "---", "**"]) do:
-      A ::= Ints | Punct
-      Ints ::= [[ {'0' .. '9'} ]]
-      Punct ::= [[ {'-', '*', ','} ]]
+  let defaultCategory = catNoCategory
+
+  # test "Predicate token":
+  #   testparse(@["90", "---", "**"]) do:
+  #     A ::= Ints | Punct
+  #     Ints ::= [[ {'0' .. '9'} ]]
+  #     Punct ::= [[ {'-', '*', ','} ]]
+
+
+  test "Elisp funcall":
+    initGrammarConst[NoCategory, string](grammar):
+      List ::= !"(" & [[ {'f', 'F'} ]] & @*(Element) & !")"
+      # Elements ::= Element & @*(@(!"," & Element))
+      Element ::= "i" | List
+
+    let parser = newLLStarParser[NoCategory, string, void](grammar)
+
+    proc testToks(tok: seq[string]): void =
+      let tree = tok.makeTokens().makeStream().withResIt:
+        parser.parse(it)
+
+      echo tree.treeRepr()
+
+    testToks @["(", "f", "i", "i", "i", ")"]
+    testToks @["(", "F", "i", "(", "f", "i", ")", ")"]

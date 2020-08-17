@@ -89,8 +89,6 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
       )
 
       debugecho "\e[31mLEX PRED LITERAL ----\e[39m\n", etok.lexPredLiteral
-      debugecho "\e[32mRESULT STR VALUE ====\e[39m\n", result.toStrLit().strVal()
-      debugecho result.treeRepr()
 
       result = parseStmt(etok.lexPredLiteral)
     else:
@@ -180,7 +178,10 @@ func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
     false
   else:
     if exp.hasLex:
-      exp.lex == tok.lex
+      if exp.isPredicate:
+        exp.lexPred(tok.lex)
+      else:
+        exp.lex == tok.lex
     else:
       true
 
@@ -248,9 +249,11 @@ type
 
 #=============================  Predicates  ==============================#
 func contains*[L](lset: LexSet[L], lex: L): bool =
+  debugecho &"Testing if lex {lex} is in set"
   if lex in lset.lexemes:
     true
   else:
+    debugecho "lex set contains ", lset.predicates.len, " predicates"
     for pr in lset.predicates:
       if pr(lex):
         return true
@@ -264,7 +267,10 @@ func hash*[C, L](tok: ExpectedToken[C, L]): Hash =
 
   when not (L is void):
     if tok.hasLex:
-      h = h !& hash(tok.lex)
+      if tok.isPredicate:
+        h = h !& hash(tok.lexPredRepr)
+      else:
+        h = h !& hash(tok.lex)
 
   result = !$h
 
@@ -294,11 +300,13 @@ func `==`*[C, L](l, r: ExpectedToken[C, L]): bool =
 
 func incl*[L](s: var LexSet[L], lex: L): void = s.lexemes.incl(lex)
 func incl*[L](s: var LexSet[L], pr: LexPredicate[L]): void =
+  debugecho "adding lex predicate"
   s.predicates.add pr
 
 func incl*[L](s: var LexSet[L], other: LexSet[L]): void =
   s.hasAll = s.hasAll or other.hasAll
   s.lexemes.incl(other.lexemes)
+  s.predicates &= other.predicates
 
 iterator items*[L](lset: LexSet[L]): L =
   for lex in lset.lexemes:
@@ -372,6 +380,9 @@ iterator items*[C, L](s: TokSet[C, L]): ExpectedToken[C, L] =
     for lex in items(lset):
       yield makeExpToken[C, L](cat, lex)
 
+    for pr in items(lset.predicates):
+      yield makeExpTokenPred[C, L](cat, "", pr)
+
 
 iterator pairs*[C, L](s: TokSet[C, L]): (C, LexSet[L]) =
   for cat, lset in s.tokens:
@@ -379,6 +390,7 @@ iterator pairs*[C, L](s: TokSet[C, L]): (C, LexSet[L]) =
 
 #=============================  Predicates  ==============================#
 func contains*[C, L, I](s: TokSet[C, L], tk: Token[C, L, I]): bool =
+  debugecho "Testing if token ", tk.exprRepr(), " is in set"
   if tk.cat in s.tokens:
     (s.tokens[tk.cat].hasAll) or (tk.lex in s.tokens[tk.cat])
   else:
@@ -513,6 +525,8 @@ type
     hasAll: seq[int] ## Expected tokens without specification for
                      ## lexeme
 
+    predicates: seq[tuple[pr: LexPredicate[L], altid: int]]
+
 #=============================  Predicates  ==============================#
 
 func contains*[L](ll: LexLookup[L], lex: L): bool =
@@ -550,6 +564,12 @@ func addAlt*[L](ll: var LexLookup[L],
       ))
     else:
       ll.table[lex].add alt
+
+func addAlt*[L](ll: var LexLookup[L],
+                pr: LexPredicate[L],
+                alt: int): void =
+  debugecho &"adding predicate to alt {alt}"
+  ll.predicates.add((pr, alt))
 
 func addHasAll*[L](ll: var LexLookup[L],
                    alt: int,
@@ -678,6 +698,11 @@ func getAlt*[C, L, I](
       else:
         return alts[0]
     else:
+      debugecho &"Lookup contains {lookup[token.cat].predicates.len}"
+      for (pr, altid) in lookup[token.cat].predicates:
+        return altid
+
+
       raiseAssert(
         &"No item in lookup matches lexeme for token: {token.exprRepr()}"
       )
@@ -688,11 +713,15 @@ func addAlt*[C, L](tl: var TokLookup[C, L],
                    tok: ExpectedToken[C, L],
                    alt: int,
                    canconflict: bool = false): void =
+  debugecho &"Adding alt {tok.exprRepr()} -> {alt}"
   if tok.cat notin tl.table:
     tl.table[tok.cat] = initLexLookup[L]()
 
   if tok.hasLex:
-    tl.table[tok.cat].addAlt(tok.lex, alt, canconflict = canconflict)
+    if tok.isPredicate:
+      tl.table[tok.cat].addAlt(tok.lexPred, alt)
+    else:
+      tl.table[tok.cat].addAlt(tok.lex, alt, canconflict = canconflict)
   else:
     tl.table[tok.cat].addHasAll(alt, canconflict = canconflict)
 
