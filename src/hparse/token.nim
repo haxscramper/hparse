@@ -79,15 +79,18 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
   if etok.hasLex:
     if etok.isPredicate:
       result = mkCallNode(
-        "makeExpToken",
+        "makeExpTokenPred",
         @[
           ident($etok.cat),
           newLit(etok.lexPredRepr),
-          parseExpr(etok.lexPredLiteral),
-          newLit("")
+          parseStmt(etok.lexPredLiteral),
+          newLit(etok.lexPredLiteral)
         ]
       )
 
+      debugecho "\e[31mLEX PRED LITERAL ----\e[39m\n", etok.lexPredLiteral
+      debugecho "\e[32mRESULT STR VALUE ====\e[39m\n", result.toStrLit().strVal()
+      debugecho result.treeRepr()
 
     else:
       result = mkCallNode(
@@ -122,6 +125,7 @@ func makeExpTokenPred*[C, L](
   lexPred: LexPredicate[L],
   lexPredRepr: string,
   lexImplLiteral: string): ExpectedToken[C, L] =
+  debugecho "\e[33mLEX IMPL LITERAL\e[39m", lexImplLiteral
   ExpectedToken[C, L](
     kind: etokRegular,
     cat: cat,
@@ -238,11 +242,19 @@ type
     ## Set of lexemes
     hasAll: bool ## Whether or not all lexeme values are in set
     lexemes: HashSet[L]
+    predicates: seq[LexPredicate[L]]
 
 
 #=============================  Predicates  ==============================#
 func contains*[L](lset: LexSet[L], lex: L): bool =
-  lex in lset.lexemes
+  if lex in lset.lexemes:
+    true
+  else:
+    for pr in lset.predicates:
+      if pr(lex):
+        return true
+
+    false
 
 func hash*[C, L](tok: ExpectedToken[C, L]): Hash =
   mixin hash
@@ -280,6 +292,8 @@ func `==`*[C, L](l, r: ExpectedToken[C, L]): bool =
 #==============================  Accessors  ==============================#
 
 func incl*[L](s: var LexSet[L], lex: L): void = s.lexemes.incl(lex)
+func incl*[L](s: var LexSet[L], pr: LexPredicate[L]): void =
+  s.predicates.add pr
 
 func incl*[L](s: var LexSet[L], other: LexSet[L]): void =
   s.hasAll = s.hasAll or other.hasAll
@@ -402,7 +416,10 @@ func incl*[C, L](s: var TokSet[C, L], etk: ExpectedToken[C, L]): void =
     s.tokens[etk.cat] = makeLexSet[L]()
 
   if etk.hasLex:
-    s.tokens[etk.cat].incl etk.lex
+    if etk.isPredicate:
+      s.tokens[etk.cat].incl etk.lexPred
+    else:
+      s.tokens[etk.cat].incl etk.lex
   else:
     s.tokens[etk.cat].hasAll = true
 
@@ -700,10 +717,15 @@ func exprRepr*[C, L](exp: ExpectedToken[C, L],
                      conf: GrammarPrintConf = defaultGrammarPrintConf
                     ): string =
   when C is NoCategory:
-    fmt("{exp.lex}").toGreen(conf.colored).wrap(conf.termWrap)
+    exp.isPredicate.tern(
+      exp.lexPredRepr, $exp.lex
+    ).toGreen(conf.colored).wrap(conf.termWrap)
   else:
     if exp.hasLex:
-      fmt("({exp.cat} '{exp.lex}')")
+      if exp.isPredicate:
+        exp.lexPredRepr
+      else:
+        fmt("({exp.cat} '{exp.lex}')")
     else:
       fmt("({exp.cat} _)")
 

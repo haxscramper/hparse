@@ -1,4 +1,4 @@
-import sugar, strutils, sequtils, strformat, sets
+import sugar, strutils, sequtils, strformat, sets, macros
 import hmisc/algo/halgorithm
 import hmisc/types/colorstring
 import ../src/hparse/[
@@ -151,10 +151,10 @@ suite "Compare parsers table vs codegen LL(1)":
 
   test "Predicate token":
     func makeExpTokenPred(
-      a: string, valset: set[char], b: string
+      cat: NoCategory, a: string, valset: set[char], b: string
          ): ExpectedToken[NoCategory, string] =
 
-      makeExpTokenPred[NoCategory, string](
+      result = makeExpTokenPred[NoCategory, string](
         catNoCategory,
         &"[{valset}]",
         proc(str: string): bool =
@@ -163,6 +163,8 @@ suite "Compare parsers table vs codegen LL(1)":
               return false
           return true
        )
+
+      result.lexPredLiteral = newLit(valset).toStrLit().strVal()
 
 
     testparse(@["90", "---", "**"]) do:

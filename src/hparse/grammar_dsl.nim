@@ -245,6 +245,7 @@ proc toCalls(patt: PattTree): NimNode =
       if patt.defaultCat:
         newCall("tok") do:
           newCall("makeExpTokenPred",
+                  ident("defaultCatValue"),
                   patt.predBodyStr.newLit(),
                   patt.predBody,
                   patt.predBody.toStrLit())
@@ -351,11 +352,12 @@ template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
   # mixin makeExpectedToken
   type LexType = lexT
+  var defaultCatValue: catT
   when catT is void:
     proc dslTok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
   else:
     proc dslTok(lex: string): Patt[catT, lexT] = tok(
-      makeExpToken(catT(0), lex))
+      makeExpToken(defaultCatValue, lex))
 
   when not (catT is void) or (lexT is void):
     proc dslTok(cat: catT, lex: lexT): Patt[catT, lexT] = tok(
@@ -373,10 +375,10 @@ template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   when not (catT is void):
     proc dslTok(cat: catT): Patt[catT, lexT] = tokMaker[catT, lexT](cat)
 
-  template makeExpTokenPred(
-    lexStr: string, body: LexPredicate[lexT]): untyped =
-    var cat: catT
-    makeExpTokenPred[catT, lexT](cat, lexStr, body, lexImplLiteral)
+  # template makeExpTokenPred(
+  #   lexStr: string, body: LexPredicate[lexT]): untyped =
+  #   # var cat: catT
+  #   makeExpTokenPred[catT, lexT](cat, lexStr, body, lexImplLiteral)
 
 
 template initGrammar*[C, L](body: untyped): untyped =
