@@ -43,7 +43,10 @@ suite "Grammar base":
 
   let nt = nterm[TKind, string]
   proc dslTok(lex: string): auto = tok[TKind, string](tkA, lex)
-  proc dslTok(lex: TKind): auto = tok[TKind, string](makeExpToken[Tkind, string](tkA))
+  proc dslTok(lex: TKind): auto = tok[TKind, string](
+    makeExpToken[Tkind, string](tkA))
+
+  const defaultCategory = tkA
 
 
   template grm(body: untyped): untyped =
@@ -193,12 +196,12 @@ suite "Grammar base":
 
 suite "Grammar DSL API":
   test "{initGrammar} template":
-    # TODO test `void` category type with string lexemes
     type
       En = enum
         tkA
         tkB
 
+    const defaultCategory = tkA
     let ntUsr = nterm[En, string]
     proc tokUsr(lex: string): auto = tok[En, string](tkA, lex)
     proc tokUsr(lex: En): auto = tok[En, string](tkA)
@@ -231,23 +234,26 @@ suite "Grammar DSL API":
       {"A" : ntUsr("B")}
 
   test "{initGrammar} with `void` category":
-    let grammar = initGrammar[void, string]:
+    const defaultCategory = catNoCategory
+    let grammar = initGrammar[NoCategory, string]:
       A ::= "hello"
 
     assertEq do:
-      initGrammar[void, string]:
+      initGrammar[NoCategory, string]:
         A ::= "hello111"
     do:
-      {"A" : voidCatTok("hello111")}
+      {"A" : noCatTok("hello111")}
 
 
   test "{initGrammarConst}":
-    initGrammarConst[void, string](grammar):
+    const defaultCategory = catNoCategory
+    initGrammarConst[NoCategory, string](grammar):
       A ::= B
 
-    assertEq grammar, {"A" : nterm[void, string]("B")}
+    assertEq grammar, {"A" : nterm[NoCategory, string]("B")}
 
   test "{initGrammar} with `NoCategory`":
+    const defaultCategory = catNoCategory
     let grammar = initGrammar[NoCategory, string]:
       A ::= "hello" & *(B) & "world"
       B ::= "!!"
@@ -258,9 +264,7 @@ suite "Grammar DSL API":
         ctOne
         ctTwo
 
-    # dumpTree:
-    #   {"A": andP(tok(ctOne, "hello"), tok(ctTwo, "world"))}
-
+    const defaultCategory = ctOne
     block: # Automatically infer prefix for token category
       let grammar = initGrammar[Cat, string]:
         A ::= "hello".one & "world".two

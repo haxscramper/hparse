@@ -101,8 +101,8 @@ func tok*[C, L](cat: C, lex: L): Patt[C, L] =
   Patt[C, L](kind: pkTerm, tok: makeExpToken(cat, lex))
 
 
-func voidCatTok*[L](lex: L): Patt[void, L] =
-  Patt[void, L](kind: pkTerm, tok: makeExpTokenVoidCat(lex))
+func noCatTok*[L](lex: L): Patt[NoCategory, L] =
+  Patt[NoCategory, L](kind: pkTerm, tok: makeExpNoCat(lex))
 
 func tok*[C, L](cat: C): Patt[C, L] =
   Patt[C, L](kind: pkTerm, tok: makeExpToken[C, L](cat))

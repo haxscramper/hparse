@@ -41,6 +41,7 @@ suite "Parser generation tests":
         parser.parse(it)
 
     test "LL(1) codegen grammar dsl":
+      const defaultCategory = en1
       initGrammarConst[En, string](grammar):
         A ::= en1 & en2
 
@@ -63,6 +64,7 @@ suite "Parser generation tests":
       )
 
     test "LL(1) string tokens":
+      const defaultCategory = catNoCategory
       initGrammarConst[NoCategory, string](grammar):
         A ::= "hello" & *(B) & "world"
         B ::= "!!"
@@ -75,6 +77,7 @@ suite "Parser generation tests":
       echo tree.treeRepr()
 
     test "LL(1) predictive string tokens":
+      const defaultCategory = catNoCategory
       let grammar = initGrammar[NoCategory, string]:
         A ::= "hello" & *(B) & "world"
         B ::= "!!"
@@ -89,6 +92,7 @@ suite "Parser generation tests":
       echo tree.treeRepr()
 
     test "Earley parser":
+      const defaultCategory = catNoCategory
       let grammar = initGrammar[NoCategory, string]:
         A ::= "1" & "2"
 
@@ -101,6 +105,7 @@ suite "Parser generation tests":
 template testparse(tokens, grammarBody: untyped): untyped =
   let grammarVal =
     block:
+      const defaultCategory {.inject.} = catNoCategory
       initGrammarCalls(NoCategory, string)
       initGrammarImpl(grammarBody)
     # initGrammar[NoCategory, string]:
@@ -108,6 +113,7 @@ template testparse(tokens, grammarBody: untyped): untyped =
 
   const grammarConst =
     block:
+      const defaultCategory {.inject.} = catNoCategory
       initGrammarCalls(NoCategory, string)
       initGrammarImpl(grammarBody)
 
@@ -163,33 +169,26 @@ suite "Predicate token":
        ): ExpectedToken[NoCategory, string] =
 
     result = makeExpTokenPred[NoCategory, string](
-      catNoCategory,
-      &"[{valset}]",
+      catNoCategory, &"[{valset}]",
       proc(str: string): bool =
-        # debugecho &"testing string {str} in {valset}"
         for ch in str:
           if ch notin valset:
             return false
         return true
      )
 
-    # debugecho "Constructed expected token"
-    # debugecho result.exprRepr()
-
-
-  let defaultCategory = catNoCategory
-
-  # test "Predicate token":
-  #   testparse(@["90", "---", "**"]) do:
-  #     A ::= Ints | Punct
-  #     Ints ::= [[ {'0' .. '9'} ]]
-  #     Punct ::= [[ {'-', '*', ','} ]]
+  test "Predicate token":
+    const defaultCategory = catNoCategory
+    testparse(@["90", "---", "**"]) do:
+      A ::= Ints | Punct
+      Ints ::= [[ {'0' .. '9'} ]]
+      Punct ::= [[ {'-', '*', ','} ]]
 
 
   test "Elisp funcall":
+    const defaultCategory = catNoCategory
     initGrammarConst[NoCategory, string](grammar):
       List ::= !"(" & [[ {'f', 'F'} ]] & @*(Element) & !")"
-      # Elements ::= Element & @*(@(!"," & Element))
       Element ::= "i" | List
 
     let parser = newLLStarParser[NoCategory, string, void](grammar)
@@ -202,3 +201,20 @@ suite "Predicate token":
 
     testToks @["(", "f", "i", "i", "i", ")"]
     testToks @["(", "F", "i", "(", "f", "i", ")", ")"]
+
+  test "tExample standalone":
+    const defaultCategory = catNoCategory
+    initGrammarConst[NoCategory, string](grammar):
+      A ::= B | C
+      B ::= [[ it.startsWith("@") ]]
+      C ::= [[ true ]]
+
+    let parser = newLLStarParser[NoCategory, string, void](grammar)
+
+    proc testToks(tok: seq[string]): void =
+      let tree = tok.makeTokens().makeStream().withResIt:
+        parser.parse(it)
+
+      echo tree.treeRepr()
+
+    testToks (@["@ident", "#comment", "@ident"]

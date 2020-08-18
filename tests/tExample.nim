@@ -6,6 +6,7 @@ import hashes
 
 suite "Grammar exampl":
   test "Tree fixup":
+    const defaultCategory = catNoCategory
     initGrammarConst[NoCategory, string](grammar):
       A ::= "hello" & *(B) & "world"
       B ::= "!!"
@@ -67,6 +68,27 @@ suite "Tree actions examples":
     do:
       A ::= "-" & { "z" & "e" }
 
+  func makeExpTokenPredUsr(
+    cat: NoCategory, valset: set[char]
+       ): ExpectedToken[NoCategory, string] =
+
+    result = makeExpTokenPred[NoCategory, string](
+      catNoCategory, &"[{valset}]",
+      proc(str: string): bool =
+        for ch in str:
+          if ch notin valset:
+            return false
+        return true
+     )
+
+
+  func makeExpTokenPredUsr(
+    cat: NoCategory, value: bool): ExpectedToken[NoCategory, string] =
+
+    result = makeExpTokenPred[NoCategory, string](
+      catNoCategory, &"[{value}]",
+      proc(str: string): bool = value
+     )
 
   test "Predicates for tokens":
     echo eparse(@["@ident", "#comment", "@ident"]) do:

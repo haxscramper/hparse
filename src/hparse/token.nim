@@ -78,19 +78,15 @@ type
 func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
   if etok.hasLex:
     if etok.isPredicate:
-      result = mkCallNode(
-        "makeExpTokenPred",
-        @[
-          ident($etok.cat),
-          newLit(etok.lexPredRepr),
-          parseStmt(etok.lexPredLiteral),
-          newLit(etok.lexPredLiteral)
-        ]
-      )
-
-      # debugecho "\e[31mLEX PRED LITERAL ----\e[39m\n", etok.lexPredLiteral
-
       result = parseStmt(etok.lexPredLiteral)
+      if result[0][0] == ident("makeExpTokenPredBuilder"):
+        let lexT = ident($typeof(L))
+        result = quote do:
+          block:
+            type LexType {.inject.} = `lexT`
+            `result`
+
+      debugecho "\e[31mLEX FUNCALL ----\e[39m\n", result.toStrLit().strVal()
     else:
       result = mkCallNode(
         "makeExpToken",
@@ -100,8 +96,6 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
       "makeExpToken",
       @[($typeof(C)).mkNType(), ($typeof(L)).mkNType()],
       @[ident($etok.cat)])
-
-  # echov result.treeRepr()
 
 
 
@@ -167,9 +161,10 @@ func makeExpEOFToken*[C, L](): ExpectedToken[C, L] =
 
 # func makeExpEOFToken*()
 
-# TODO remove
-func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
-  ExpectedToken[void, L](kind: etokRegular, hasLex: true, lex: lex)
+# # TODO remove
+# func makeExpTokenVoidCat*[L](lex: L): ExpectedToken[void, L] =
+#   ExpectedToken[void, L](
+#     kind: etokRegular, hasLex: true, lex: lex)
 
 func matches*[C, L, I](exp: ExpectedToken[C, L], tok: Token[C, L, I]): bool =
   ## Return true if token `tok` matches with expected token `exp`

@@ -139,11 +139,12 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
         let tokBuilder =
           case impl.kind:
             of nnkInfix, nnkCall, nnkDotExpr:
+              let
+                itId = ident "it"
               let cbImpl = quote do:
                 (
                   block:
-                    proc tmp(it: LexType): bool {.noSideEffect.} =
-                      let it {.inject.} = it
+                    proc tmp(`itId`: LexType): bool {.noSideEffect.} =
                       `impl`
 
                     tmp
@@ -152,8 +153,8 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
               var tmp = newCall(
                 "makeExpTokenPredBuilder",
                 ident("defaultCategory"),
-                impl.toStrLit(),
                 cbImpl,
+                impl.toStrLit(),
                 cbImpl.toStrLit()
               )
 
@@ -351,14 +352,20 @@ macro initGrammarImplCat*(cat: typed, body: untyped): untyped =
 
 template initGrammarCalls*(catT, lexT: typed): untyped {.dirty.} =
   proc nt(str: string): Patt[catT, lexT] = nterm[catT, lexT](str)
+  static:
+    assert declared(defaultCategory),
+      "Must declare `defaultCategory` const"
+    when declared(defaultCategory):
+      assert defaultCategory is catT
   # mixin makeExpectedToken
   type LexType = lexT
-  var defaultCategory: catT
-  when catT is void:
-    proc dslTok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
-  else:
-    proc dslTok(lex: string): Patt[catT, lexT] = tok(
-      makeExpToken(defaultCategory, lex))
+  # var defaultCategoryTmp {.compileTime}: catT
+  # const defaultCategory = defaultCategoryTmp
+  # when catT is void:
+  #   proc dslTok(lex: string): Patt[catT, lexT] = voidCatTok[lexT](lex)
+  # else:
+  proc dslTok(lex: string): Patt[catT, lexT] = tok(
+    makeExpToken(defaultCategory, lex))
 
   when not (catT is void) or (lexT is void):
     proc dslTok(cat: catT, lex: lexT): Patt[catT, lexT] = tok(

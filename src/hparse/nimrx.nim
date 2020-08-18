@@ -36,6 +36,7 @@ type
     rcsWord
 
   RxKind = enum
+    rcsStrLit
     rcsChar ## Any character in set
     rcsNotChar ## Any character not in set
     rcsLineStart
@@ -132,6 +133,8 @@ func tokenize(str: string): seq[RxTok] =
       result.add tok(rxkStrLit, word[1..^2])
     else:
       result.add tok(rxkIdent, word)
+
+const defaultCategory = rxkStrLit
 
 initGrammarConst[RxTokKind, string](grammar):
   List ::= !op & ident & @*(Element) & !cl

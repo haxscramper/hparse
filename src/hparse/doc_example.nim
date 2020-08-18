@@ -28,12 +28,14 @@ export grammar_dsl,
 
 template exampleGrammar*(body: untyped): untyped =
   block:
+    const defaultCategory {.inject.} = catNoCategory
     initGrammarCalls(NoCategory, string)
     initGrammarImplCat(NoCategory, body)
 
 
 template exampleGrammarConst*(name, body: untyped): untyped =
   const name = block:
+    const defaultCategory {.inject.} = catNoCategory
     initGrammarCalls(NoCategory, string)
     initGrammarImplCat(NoCategory, body)
 
@@ -53,16 +55,18 @@ template exampleStream*(str: typed): untyped =
 
 
 template exampleParse*(str: typed, grammar: untyped): untyped =
-  const name = block:
-    initGrammarCalls(NoCategory, string)
-    initGrammarImplCat(NoCategory, grammar)
+  block:
+    const defaultCategory {.inject.} = catNoCategory
+    const name = block:
+      initGrammarCalls(NoCategory, string)
+      initGrammarImplCat(NoCategory, grammar)
 
-  let grm = name
-  # echo grm.toGrammar().exprRepr()
-  let parser = exampleParser(name)
-  var stream = exampleStream(str)
-  let tree = parser.parse(stream)
-  tree
+    let grm = name
+    # echo grm.toGrammar().exprRepr()
+    let parser = exampleParser(name)
+    var stream = exampleStream(str)
+    let tree = parser.parse(stream)
+    tree
 
 template eparse*(str: typed, grm: untyped): untyped =
   let tree = exampleParse(str, grm)
@@ -83,6 +87,7 @@ func sideBySide*(str1, str2: string): string =
 
 template exampleParseBNF*(str: typed, grammar: untyped): untyped =
   let name = block:
+    const defaultCategory = catNoCategory
     initGrammarCalls(NoCategory, string)
     initGrammarImplCat(NoCategory, grammar)
 
@@ -93,6 +98,7 @@ template exampleParseBNF*(str: typed, grammar: untyped): untyped =
 
 template exampleParseBNF_noFix*(str: typed, grammar: untyped): untyped =
   let name = block:
+    const defaultCategory = catNoCategory
     initGrammarCalls(NoCategory, string)
     initGrammarImplCat(NoCategory, grammar)
 

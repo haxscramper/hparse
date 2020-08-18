@@ -10,8 +10,10 @@ import ../src/hparse/nimrx
 
 import unittest
 
+const defaultCategory = catNoCategory
 suite "Compile-time parsing":
   test "Parser construction":
+
     initGrammarConst[NoCategory, string](grammar):
       A ::= "hello" & "world"
 
