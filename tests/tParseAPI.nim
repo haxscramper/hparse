@@ -144,16 +144,8 @@ template testparse(tokens, grammarBody: untyped): untyped =
 
 
 suite "Compare parsers table vs codegen LL(1)":
-  when true:
-
-    # test "Primitive grammar":
-    #   testparse(@["e", "E"]):
-    #     A ::= "e" & "E"
-
+  if false:
     test "Double splice one-or-more":
-      # testparse(@[":", ";", ":", ";", ":", ";"]):
-      #   A ::= *(":" & ";")
-
       testparse(@["-", ":", ";", ":", ";", ":", ";"]):
         A ::= "-" & @*(@(":" & ";"))
 
@@ -177,12 +169,23 @@ suite "Predicate token":
         return true
      )
 
+
+  func makeExpTokenPredUsr(
+    cat: NoCategory, valset: bool
+       ): ExpectedToken[NoCategory, string] =
+
+    result = makeExpTokenPred[NoCategory, string](
+      catNoCategory, &"[{valset}]",
+      proc(str: string): bool = valset
+     )
+
   test "Predicate token":
     const defaultCategory = catNoCategory
-    testparse(@["90", "---", "**"]) do:
-      A ::= Ints | Punct
-      Ints ::= [[ {'0' .. '9'} ]]
-      Punct ::= [[ {'-', '*', ','} ]]
+    if false:
+      testparse(@["90", "---", "**"]) do:
+        A ::= Ints | Punct
+        Ints ::= [[ {'0' .. '9'} ]]
+        Punct ::= [[ {'-', '*', ','} ]]
 
 
   test "Elisp funcall":
@@ -205,7 +208,7 @@ suite "Predicate token":
   test "tExample standalone":
     const defaultCategory = catNoCategory
     initGrammarConst[NoCategory, string](grammar):
-      A ::= B | C
+      A ::= *(B | C)
       B ::= [[ it.startsWith("@") ]]
       C ::= [[ true ]]
 
@@ -217,4 +220,4 @@ suite "Predicate token":
 
       echo tree.treeRepr()
 
-    testToks (@["@ident", "#comment", "@ident"]
+    testToks (@["@ident", "#comment", "@ident"])

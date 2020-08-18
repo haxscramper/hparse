@@ -19,6 +19,7 @@ import ../src/hparse/[
 import unittest
 
 suite "LL(*) gen":
+  const defaultCategory = catNoCategory
   test "test":
     initGrammarConst[NOCategory, string](grammar):
       A ::= "(" | "0"

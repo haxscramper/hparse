@@ -47,6 +47,7 @@ macro assertAll(body: untyped): untyped =
   for node in body:
     result.add newCall("assert", node)
 
+const defaultCategory = catNoCategory
 
 suite "Token sets":
   test "Simple follow":
