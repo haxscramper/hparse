@@ -86,7 +86,7 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
             type LexType {.inject.} = `lexT`
             `result`
 
-      debugecho "\e[31mLEX FUNCALL ----\e[39m\n", result.toStrLit().strVal()
+      # debugecho "\e[31mLEX FUNCALL ----\e[39m\n", result.toStrLit().strVal()
     else:
       result = mkCallNode(
         "makeExpToken",

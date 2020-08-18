@@ -166,13 +166,21 @@ proc newPattTree(node: NimNode, conf: GenConf): PattTree =
               let impl = quote do:
                 makeExpTokenPredUsr(defaultCategory, `impl`)
 
+              let implAssert = toCompilesAssert(
+                node, impl, &"Generated {impl.toStrLit()}")
+
               let strlit = impl.toStrLit()
 
-              quote do:
+              let res = quote do:
                 block:
+                  `implAssert`
                   var tmp = `impl`
                   tmp.lexPredLiteral = `strlit`
                   tmp
+
+              # debugecho res.toStrLit()
+              res
+
 
         PattTree(kind: ptkPredicate, expBuilder: tokBuilder)
       else:
