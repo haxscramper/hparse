@@ -30,9 +30,12 @@ Example of very simple grammar grammar:
 
 #+caption: repeated 'hello world' grammar
 #+begin_src nim
+  const defaultCategory = catNoCategory
   let grammar = initGrammar[NoCategory, string]:
     A ::= *("hello" & "world")
 #+end_src
+
+#+RESULTS:
 
 More complex example (with result tree)
 
@@ -329,6 +332,7 @@ E1~ - recursion is replaced with iteration.
 
 #+caption: Comparison of ~LL(*)~ and table-driven LL(1) (w/o fixup)
 #+begin_src nim :exports both
+  const defaultCategory = catNoCategory
   initGrammarConst[NoCategory, string](grammar):
     A ::= "hello" & *(B) & "world"
     B ::= "!!"
@@ -471,7 +475,7 @@ Unexpected prefix: '!@*'
 
 
 
-Raised in grammar_dsl.nim:105
+Raised in grammar_dsl.nim:112
 
 
  [CodeError:ObjectType]
@@ -480,4 +484,4 @@ Raised in grammar_dsl.nim:105
 
 NOTE: output is not colored in readme (because github [[https://github.com/github/markup/issues/369][fails]] to support
 this basic feature *since 2014*), but it is colored by default
-terminal (controlled by using ~-d:plainStdout~ compilation flag)
+terminal (controlled by using ~-d:plainStdout~ compilation flag).
