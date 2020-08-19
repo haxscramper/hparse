@@ -11,6 +11,41 @@ compile/runtime parsing and automatic parse tree generation)
 
 ** ~tscanf~
 
+Statically typed wrapper on top of ~scanf~, supports all matcher
+syntax (e.g ~$w~, ~$i~ etc) as well as custom matcher procdedures.
+Tuple ~ml~ is injected in the scope with following types for each
+capture:
+
+- ~i, o, b, h~ : int
+- ~f~ : float
+- ~*, +~ : string
+- ~${matcherProc}~ : if matcher proc has signature ~(s: string, arg:
+  var T, start: int): int~ then tuple field will be of type ~T~
+
+#+begin_src nim :exports both
+  import hparse/tscanf
+
+  func matcher1(s: string, arg: var seq[string], start: int): int =
+    #                               ^^^^^^^^^^^
+    #                               type of the captured variable
+    arg = @["##", "$$"]
+    return s.len - start
+
+  if tscanf("12x12---%1,1,1,1", "$ix$i$+%${matcher1}"):
+    echo ml[0] / 2, " = ", ml[2]," ", ml[3]
+
+    assert declared(ml)
+    assert type(ml[3]) is seq[string]
+    #                     ^^^^^^^^^^^
+    #                     Resultint field type in tuple
+  else:
+    assert not declared(ml)
+    echo "does not match"
+#+end_src
+
+#+RESULTS:
+: 6.0 = --- @["##", "$$"]
+
 ** ~rx~ macro
 
 * Parser generator
