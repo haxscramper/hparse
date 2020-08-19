@@ -36,12 +36,6 @@ suite "LL(*) gen":
       D ::= "proc" & "_"
 
     let parser = newLLStarParser[NoCategory, string, void](grammar)
-    # block:
-    #   let tree = makeTokens(@["proc", "_", "(", ")"]
-    #     ).makeStream().withResIt:
-    #       parser.parse(it)
-
-    #   echo tree.treeRepr()
 
     block:
       let tree = makeTokens(@["proc", "_", "[", "]"]

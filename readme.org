@@ -263,6 +263,38 @@ throughout codebase.
 
 For example of custom token category/lexeme see [[file:manual.org]]
 
+** Token lexeme predicates
+
+Token is accepted if lexeme predicate evaluates to 'true'.
+
+#+begin_src nim
+  import strutils, strformat
+  const defaultCategory = catNoCategory
+
+
+  func makeExpTokenPredUsr(
+    cat: NoCategory, valset: bool): ExpectedToken[NoCategory, string] =
+
+    result = makeExpTokenPred[NoCategory, string](
+      catNoCategory, &"[{valset}]", proc(str: string): bool = valset)
+
+  initGrammarConst[NoCategory, string](grammar):
+    A ::= *(B | C)
+    B ::= [[ it.startsWith("@") ]]
+    C ::= [[ true ]]
+
+  let parser = newLLStarParser[NoCategory, string, void](grammar)
+  var stream = @["@ident", "#comment", "@ident"].makeTokens().makeStream()
+  let tree = parser.parse(stream)
+  echo tree.treeRepr()
+#+end_src
+
+#+RESULTS:
+: +-> A
+:     +-> B +-> '@ident'
+:     +-> C +-> '#comment'
+:     +-> B +-> '@ident'
+
 * Development
 
 Large part of the design is described in [[file:devnotes.org]], all
@@ -272,9 +304,36 @@ questions there.
 
 ** Rationale
 
-aka 'why?'
+I'm not an expert on parsing algorithms and related things, so I tried
+to design it in a way that would *actually* abstract things. Not like
+'/uh, well, we have a LALR parser, yes, but you know what? You have to
+build tree yourself, by putting bits of code all over your grammar.
+How to write this code? Well, we actually expect you to know how
+parser is working, just so you can get a tree./'
 
-#TODO
+Not supporting syntactic predicates allows use of multiple parsing
+algorithms for the same grammar, ranging from restrictive but fast
+~LL(1)~ to something like earley parser.
+
+The parser abstracts notion of token and is not tied to any lexer
+implementation - if you want to can just split string on spaces and
+call it a lexer. Or you can do some heuristics in lexer and assign
+category based on context. Or something else, I don't know now.
+
+The whole grammar is available /as a value/, which means it is
+possible to easily do all sorts of preprocessing, error detection
+(like using undeclared nonterminal, left recursion detection and so
+on).
+
+Tree actions and template rules provide small, but hopefully useful
+subset of syntactic actions. Advantage - it is possible to know how
+exactly the tree will look like. Generating statically typed case
+object for a grammar is possible.
+
+Parser generator was originally intended to work in conjunction with
+term rewriting system. You write grammar in EBNF notation, dropping
+all cruft immediately (using splice-discard and drop rules) and then
+declaratively transform tree into something else.
 
 ** State of development
 
@@ -301,6 +360,16 @@ If you have any question about implementation details, API etc. you
 can join my [[https://discord.gg/ZnBB4E][discord server]].
 
 *** Earley parser
+
+tl;dr
+
+- real the [[http://loup-vaillant.fr/tutorials/earley-parsing/parser][article]], specifically [[http://loup-vaillant.fr/tutorials/earley-parsing/parser][this]] page
+- get partial Nim implementation from [[file:src/hparse/earley_parser.nim]]
+- can try it out on playground [[https://play.nim-lang.org/#ix=2uBS][here]]
+- implement ~parseTree~ proc
+- I'm happy to answer any questions (to the best of my ability)
+- result: get EBNF parser generator with support for left-recursive & ambiguous grammars.
+
 
 When implementing ~Earley~ parser I mostly followed [[http://loup-vaillant.fr/tutorials/earley-parsing/][this]] tutorial - it
 has example implementation in ocaml and very nice explanation of most
@@ -450,6 +519,49 @@ something like ~@*(@{!',' & <Element>})}~ to BNF it gets flattened
 out, and it is not clear how to first splice things in ~!',' &
 <Element>~, and then splice it again.
 
+
+** Future development
+
+*** Generate statically typed parse tree
+
+Right now parse tree is 'stringly typed' - nonterminal heads are
+described using ~string~ and all subnodes are placed in the same
+~subnodes: seq[ParseTree[...]]~.
+
+Grammar DSL contains all necessary information to construct case
+object with selector enum as well as order all fields (~LL(*)~ parser
+uses constant grammar to generate set of mutally recursive functions).
+Tree actions could provide almost all necessary information for field
+types and ordering.
+
+Possible mapping from grammar to constructed object
+
+- ~Nterm ::= ...~ -> ~of ptrNterm: <fields>~
+- ~E1 & E2 & E3~ -> ~tuple[e1: <type-of-E1>, ... ]~
+- ~*E1~ and ~+E1~ -> ~seq[<type-of-E1>]~
+- ~?E1~ -> ~Optional[<type-of-E1>]~
+- ~E1 | E2~ -> ~case idx: [<number-of-alternatives>]~ and each
+  alternative gets it's own field. Case objects can be nested so this
+  is not a problem.
+- ~<token>~ -> ~tok: Token[...]~
+
+There are several questions related to possible use cases, ease of use
+etc.
+
+- [ ] Determenistic and intuitive names for fields.
+- [ ] How fields should be named? It is not possible to have
+  same-named fields in nim case objects.
+
+
+*** Different type of tree
+
+Right now ~ParseTree[C, L, I]~ is hardcoded into all parsers - I don't
+think it will be enough for all use cases.
+
+- It is required to make separate type of parse tree defined for each
+  grammar is
+- Inegration with ~nimtrs~ - construct term instead of parse tree and
+  /maybe/ run rewriting actions immediately.
 
 * DSL error reporting
 
