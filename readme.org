@@ -92,8 +92,6 @@ Example of very simple grammar grammar:
 
 More complex example (with result tree)
 
-#TODO generate tree
-
 #+caption: Nested list grammar
 #+begin_src nim :exports both
   exampleGrammarConst(grammar):
@@ -124,11 +122,28 @@ More complex example (with result tree)
 
 *** DSL syntax
 
-**** EBNF prefix
+# IDEA add examples of each grammar rule? I think this is better
+# suited for manual.
+
+**** EBNF syntax
+
+Note: ~<string>~ means a string literal, like "|????"
+# Github org-mode parser cannot handle things like ~"E"~ so I wrote it
+# this way.
 
 - ~*~ zero-or-more
 - ~+~ one-or-more
 - ~?~ optional
+- ~&~ concatenation
+- ~|~ alternative
+- ~Nonterminal ::= ...~ declare new nontemrinal. Identifier *must* be
+  uppercased.
+- ~<string>~ token literal. Default category is used
+- ~<string>.prCat~ or ~<string>.cat~ token literal with lexeme
+  ~<string>~ and category ~prCat~. Prefix is automatically inferred on
+  grammar construction and can be omitted.
+- ~[[ expr ]]~ token with lexeme predicate.
+- ~[ ... ]~ option
 
 **** Tree actions prefix
 
@@ -141,7 +156,6 @@ More complex example (with result tree)
 
 # NOTE i'm really not sure about these actions: I need to figure out
 # how they should work. Promoting multiple elements at once?
-
 
 # - "^@*" :: splice-promote zero-or-more
 # - "^@+" :: splice-promote zero-or-more
@@ -318,7 +332,15 @@ For example of custom token category/lexeme see [[file:manual.org]]
 
 ** Token lexeme predicates
 
-Token is accepted if lexeme predicate evaluates to 'true'.
+Token is accepted if lexeme predicate evaluates to 'true'. Predicate
+is placed in double square braces = ~[[ expr ]]~. Depending on syntax
+of the expression different actions are performed.
+
+- _if_ it is ~Infix~, ~Call~ or ~DotExpr~ (ex: ~it in ["a", "B"]~,
+  ~startsWith(it, "..")~) whole expression is wrapped into predicate
+  function ~proc(it: L): bool {.noSideEffect.} = <your-expression>~.
+- _otherwise_ it is passed to ~makeExpTokenPredUsr(cat: C, val:
+  <your-expression-type>~)
 
 #+begin_src nim
   import strutils, strformat
@@ -329,12 +351,22 @@ Token is accepted if lexeme predicate evaluates to 'true'.
     cat: NoCategory, valset: bool): ExpectedToken[NoCategory, string] =
 
     result = makeExpTokenPred[NoCategory, string](
-      catNoCategory, &"[{valset}]", proc(str: string): bool = valset)
+      catNoCategory, # Expected token category
+      &"[{valset}]", # string representation of expected token predicate
+                     # (for pretty-printing)
+      proc(str: string): bool = valset # Construct predicate yourself
+    )
 
   initGrammarConst[NoCategory, string](grammar):
     A ::= *(B | C)
     B ::= [[ it.startsWith("@") ]]
-    C ::= [[ true ]]
+    #          ^^^^^^^^^^^^^^^^^^
+    #          |
+    #          Copied to predicate directly
+    C ::= [[ true ]] # Fallback nonterminal
+    #        ^^^^
+    #        |
+    #        Passed to `makeExpTokenPredUsr`
 
   let parser = newLLStarParser[NoCategory, string, void](grammar)
   var stream = @["@ident", "#comment", "@ident"].makeTokens().makeStream()
@@ -358,11 +390,8 @@ questions there.
 ** Rationale
 
 I'm not an expert on parsing algorithms and related things, so I tried
-to design it in a way that would *actually* abstract things. Not like
-'/uh, well, we have a LALR parser, yes, but you know what? You have to
-build tree yourself, by putting bits of code all over your grammar.
-How to write this code? Well, we actually expect you to know how
-parser is working, just so you can get a tree./'
+to design it in a way that would *actually* abstract things and make
+it easy to understand the API.
 
 Not supporting syntactic predicates allows use of multiple parsing
 algorithms for the same grammar, ranging from restrictive but fast
@@ -575,6 +604,11 @@ out, and it is not clear how to first splice things in ~!',' &
 
 ** Future development
 
+*** TODO
+
+- [ ] support ~`<token-literal>`~ in grammar
+- [ ] generate errors on unknown nonterminals used in production
+
 *** Generate statically typed parse tree
 
 Right now parse tree is 'stringly typed' - nonterminal heads are
@@ -616,10 +650,20 @@ think it will be enough for all use cases.
 - Inegration with ~nimtrs~ - construct term instead of parse tree and
   /maybe/ run rewriting actions immediately.
 
+*** ~L~ and ~S~-attributed grammars
+
+*** Parser based on definitive clause grammars
+
+I'm like, 40% sure that I'm not sure about what it is, but it looked
+nice when I saw it last time. It is related to prolog and [[https://github.com/haxscramper/nimtrs][nimtrs]]
+already implements large portions (no clauses and backtracking but
+full support of unification and all auxiliary functions for working
+with terms and environments).
+
 * DSL error reporting
 
-DSL for this library uses =hmisc/hexceptions= to generate *much*
-better compilation errors in case of malformed DSL.
+DSL for this library uses [[https://github.com/haxscramper/hmisc#hmischexceptions][hmisc/hexceptions]] to generate *much* better
+compilation errors in case of malformed DSL.
 
 #+begin_src nim :exports both
 let tree = "h".exampleParse:

@@ -67,6 +67,10 @@ suite "Grammar base":
       "A" : andP(dslTOk(tkA), dslTOk(tkB))
     }
 
+    assertEq initGrammarImpl(A ::= [ tkA ]), {
+      "A" : optP(dslTOk(tkA))
+    }
+
     assertEq initGrammarImpl(A ::= "$" & Z), {
       "A" : andP(dslTOk("$"), nt("Z"))
     }
@@ -105,7 +109,6 @@ suite "Grammar base":
     assertEq grm(A ::= [B & C]), {"A" : optP(andP(nt "B", nt "C"))}
     assertEq grm(A ::= [B | C]), grm(A ::= [B | C])
     assertEq grm(A ::= ?(A | B)), grm(A ::= [A | B])
-
 
   test "Grammar tree actions":
     assertEq initGrammarImpl(A ::= !B), {
