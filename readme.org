@@ -37,7 +37,7 @@ capture:
     assert declared(ml)
     assert type(ml[3]) is seq[string]
     #                     ^^^^^^^^^^^
-    #                     Resultint field type in tuple
+    #                     Resulting field type in tuple
   else:
     assert not declared(ml)
     echo "does not match"
@@ -46,15 +46,33 @@ capture:
 #+RESULTS:
 : 6.0 = --- @["##", "$$"]
 
-** ~rx~ macro
+** ~[WIP]~ ~rx~ macro
+
+Lisp notation for regex description. reimplementation of emacs-lisp rx
+macro.
+
+#+begin_src elisp :exports both
+(print (rx (and "a" "E") (or "()" "{}")))
+#+end_src
+
+#+RESULTS:
+: aE\(?:()\|{}\)
 
 * Parser generator
 
 Parser generator focuses on *simplicity* and *ease of use*. Concrete
 implementation details of particular parser algorithms are hidden as
-much as possible - you can [fn::this is the WIP part, but the ultimate
-goal] easily swap parsing algorithms without altering your grammar at
-all.
+much as possible - you write grammar and provide input tokens, and get
+a tree. Whole API can be described as
+
+#+begin_src nim
+  let grammar = makeGrammar:
+    # grammar definition
+
+  let parser = new<Algorithm-name>Parser(grammar)
+  var stream = # create token stream
+  let tree = parser.parse(stream)
+#+end_src
 
 ** Grammar description
 
