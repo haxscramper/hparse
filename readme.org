@@ -46,6 +46,38 @@ capture:
 #+RESULTS:
 : 6.0 = --- @["##", "$$"]
 
+** ~hparse/tokenize~
+
+Simple addition to ~parseutils~ library from stdlib - separate string
+on tokens based on character sets.
+
+#+begin_src nim :exports both
+  import hparse/tokenize
+  import hpprint
+
+  type
+    LispPart = enum
+      lpPunct
+      lpQuoted
+      lpIdent
+      lpIntLit
+
+  pprint "(hello '(world) 22)".tokenize({
+    {'(', ')'} : lpPunct,
+    {'0'..'9'} : lpIntLit,
+    {'\'', 'a'..'z', 'A'..'Z', ')', '('} : lpQuoted,
+    {'a'..'z', 'A'..'Z'} : lpIdent
+  })
+
+#+end_src
+
+#+RESULTS:
+: - (lpPunct, "(")
+: - (lpQuoted, "hello")
+: - (lpQuoted, "'(world)")
+: - (lpIntLit, "22")
+: - (lpPunct, ")")
+
 ** ~[WIP]~ ~rx~ macro
 
 Lisp notation for regex description. reimplementation of emacs-lisp rx
