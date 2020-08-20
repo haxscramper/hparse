@@ -2,7 +2,7 @@
 #+property: header-args:nim+ :flags -d:plainStdout --cc:tcc --hints:off
 #+property: header-args:nim+ :import hparse/doc_example
 
-Collection of variout utilities related to parsing, ranging from
+Collection of various utilities related to parsing, ranging from
 statically typed wrapper on top of ~scanf~ to full parser generator
 (with support for EBNF notation, tree actions, template rules,
 compile/runtime parsing and automatic parse tree generation)
@@ -12,7 +12,7 @@ compile/runtime parsing and automatic parse tree generation)
 ** ~tscanf~
 
 Statically typed wrapper on top of ~scanf~, supports all matcher
-syntax (e.g ~$w~, ~$i~ etc) as well as custom matcher procdedures.
+syntax (e.g ~$w~, ~$i~ etc) as well as custom matcher procedures.
 Tuple ~ml~ is injected in the scope with following types for each
 capture:
 
@@ -79,7 +79,7 @@ a tree. Whole API can be described as
 Grammar described using EBNF notation, with only exception being use
 of prefix notation - e.g. for zero-or-more you need to write ~*E~.
 
-Example of very simple grammar grammar:
+Example of very simple grammar:
 
 #+caption: repeated 'hello world' grammar
 #+begin_src nim
@@ -169,7 +169,7 @@ Note: ~<string>~ means a string literal, like "|????"
 - ~@+~  splice one-or-more
 - ~@*~  splice zero-or-more
 - ~!?~  drop optional
-- ~^?~  prmote optional
+- ~^?~  promote optional
 
 Invalid combinations: ~*!~, ~+!~, ~*@~, ~+@~, ~*^@~, ~+^@~, ~+^~, ~*^~
 
@@ -183,14 +183,14 @@ Invalid combinations: ~*!~, ~+!~, ~*@~, ~+@~, ~*^@~, ~+^@~, ~+^~, ~*^~
 ** Tree actions
 
 Result of parser generator is a =parse tree= - very representation of
-original source code and contains all helper symbols (punctition,
-brackets, precedense levels etc). All of this cruft is necessary to
+original source code and contains all helper symbols (punctuation,
+brackets, precedence levels etc). All of this cruft is necessary to
 correctly recognize input sequence of tokens, but completely
 irrelevant afterwards - in nested list grammar only ~Elements~ are
 actually necessary, everything else can be thrown away immediately.
 *Tree actions* are intended for this exact purpose - dropping
 unnecessary parts of the parse tree, flattening out nested parts etc.
-Currently five types of actions are supported.
+Right now there is five type of tree actions (four implemented).
 
 *** Drop
 
@@ -608,6 +608,7 @@ out, and it is not clear how to first splice things in ~!',' &
 
 - [ ] support ~`<token-literal>`~ in grammar
 - [ ] generate errors on unknown nonterminals used in production
+- [ ] Unit test for nimscript and js
 
 *** Generate statically typed parse tree
 
