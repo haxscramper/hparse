@@ -609,6 +609,7 @@ out, and it is not clear how to first splice things in ~!',' &
 - [ ] support ~`<token-literal>`~ in grammar
 - [ ] generate errors on unknown nonterminals used in production
 - [ ] Unit test for nimscript and js
+- [ ] Error reporting. Right now it is basically non-existent
 
 *** Generate statically typed parse tree
 
