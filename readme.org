@@ -416,7 +416,7 @@ of the expression different actions are performed.
 
 Large part of the design is described in [[file:devnotes.org]], all
 functions and types are documented in the source code. If you have any
-additional questions feel free to join my [[https://discord.gg/ZnBB4E][discord server]] and ask
+additional questions feel free to join my [[https://discord.gg/hjfYJCU][discord server]] and ask
 questions there.
 
 ** Rationale
@@ -471,7 +471,7 @@ myself. If you are interested to solve one of there problems it will
 be especially useful.
 
 If you have any question about implementation details, API etc. you
-can join my [[https://discord.gg/ZnBB4E][discord server]].
+can join my [[https://discord.gg/hjfYJCU][discord server]].
 
 *** Earley parser
 
