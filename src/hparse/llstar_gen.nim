@@ -2,7 +2,7 @@ import sugar, strutils, sequtils, strformat, macros, tables, hashes
 import options
 
 import hmisc/helpers
-import hmisc/types/initcalls
+import hmisc/types/hnim_ast
 
 import parse_primitives, token, lexer, codegen_common, parse_tree,
        grammars, bnf_grammars
