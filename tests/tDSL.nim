@@ -19,7 +19,7 @@ import hparse/[
 ]
 
 import hpprint/objdiff
-import hmisc/macros/obj_field_macros
+import hnimast/obj_field_macros
 
 #===========================  implementation  ============================#
 

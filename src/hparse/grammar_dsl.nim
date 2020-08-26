@@ -1,7 +1,7 @@
 import sugar, strutils, sequtils, strformat, algorithm, parseutils
 import macros
 import hmisc/[helpers, hexceptions]
-import hmisc/types/hnim_ast
+import hnimast
 import grammars, token
 
 #===========================  implementation  ============================#

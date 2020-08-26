@@ -1,7 +1,7 @@
 import macros, options, sugar
 import strformat, strutils, sequtils, algorithm
 import hmisc/helpers
-import hmisc/types/hnim_ast
+import hnimast
 import sets
 import grammars
 
