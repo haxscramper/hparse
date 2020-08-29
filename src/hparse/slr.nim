@@ -1,7 +1,9 @@
-import strutils, strformat, sequtils, sugar, sets, options
+import strutils, strformat, sugar, sets, options
+import sequtils
 import hmisc/helpers
 import hmisc/types/seq2d
-import hdrawing, hdrawing/term_buf
+import hdrawing except toSeq2D
+import hdrawing/term_buf
 import hasts/graphviz_ast
 
 import parse_tree, token, lexer, bnf_grammars, grammars, bnf_algo,
@@ -360,6 +362,7 @@ proc parse*[C, L, I](
 import grammar_dsl
 
 when isMainModule:
+  const defaultCategory = catNoCategory
   let grammar = initGrammar[NoCategory, string]():
     E ::= (E & "+" & T) | (T)
     T ::= (T & "*" & F) | (F)

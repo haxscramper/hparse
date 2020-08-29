@@ -444,11 +444,11 @@ func toBNF*[C, L](
   grammar: Grammar[C, L], dofixup: FixupFlag = fixupAllow): BnfGrammar[C, L] =
   mixin toBNF
   result = makeGrammar(
-    grammar.rules.mapIt(it.toBNF(
+    sequtils.concat(grammar.rules.mapIt(it.toBNF(
       noAltFlatten = true,
       renumerate = false,
       dofixup = dofixup
-    )).concat())
+    ))))
 
   result.start = BnfNterm(generated: false, name: grammar.start)
   # debugecho result.exprRepr()

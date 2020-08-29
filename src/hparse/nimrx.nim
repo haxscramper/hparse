@@ -82,7 +82,7 @@ type
       else:
         subrx*: seq[RxSpec]
 
-func mkCharClass(charclass: RxCharClass, negation: bool): RxSpec =
+func newCharClass(charclass: RxCharClass, negation: bool): RxSpec =
   if negation:
     RxSpec(kind: rcsNotChar, charclass: charclass)
   else:
@@ -92,7 +92,7 @@ func toRxSpec(tree: RxParse): RxSpec =
   if tree.isToken:
     return case tree.tok.lex:
       of "word":
-        mkCharClass(rcsWord, false)
+        newCharClass(rcsWord, false)
       else:
         raiseAssert("#[ IMPLEMENT ]#")
   else:

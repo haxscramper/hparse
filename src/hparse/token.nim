@@ -89,13 +89,13 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
 
       # debugecho "\e[31mLEX FUNCALL ----\e[39m\n", result.toStrLit().strVal()
     else:
-      result = mkCallNode(
+      result = newCallNode(
         "makeExpToken",
         @[ ident($etok.cat), newLit(etok.lex) ])
   else:
-    result = mkCallNode(
+    result = newCallNode(
       "makeExpToken",
-      @[($typeof(C)).mkNType(), ($typeof(L)).mkNType()],
+      @[($typeof(C)).newNType(), ($typeof(L)).newNType()],
       @[ident($etok.cat)])
 
 

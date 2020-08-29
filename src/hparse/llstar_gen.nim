@@ -42,18 +42,18 @@ func makeParseProcDef[C, L](name: string): NimNode =
       )
     ),
     nnkFormalParams.newTree(
-      mkNTypeNode(
+      newNTypeNode(
         "Option",
-        mkNType("ParseTree", @[$(typeof C), $(typeof L), "I"])),
-      mkVarDeclNode(
+        newNType("ParseTree", @[$(typeof C), $(typeof L), "I"])),
+      newVarDeclNode(
         "toks",
-        mkNType("TokStream",
-                @[mkNType("Token", @[$(typeof C), $(typeof L), "I"])]),
+        newNType("TokStream",
+                @[newNType("Token", @[$(typeof C), $(typeof L), "I"])]),
         nvdVar
       ),
-      mkVarDeclNode(
+      newVarDeclNode(
         "cache",
-        mkNType("ParseCache", @[$(typeof C), $(typeof L), "I"]),
+        newNType("ParseCache", @[$(typeof C), $(typeof L), "I"]),
         nvdVar
       )
     ),
