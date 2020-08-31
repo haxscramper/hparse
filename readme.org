@@ -7,6 +7,20 @@ statically typed wrapper on top of ~scanf~ to full parser generator
 (with support for EBNF notation, tree actions, template rules,
 compile/runtime parsing and automatic parse tree generation)
 
+** Installation
+
+#+begin_src sh
+nimble install hparse
+#+end_src
+
+** Links
+
+- [[https://nimble.directory/pkg/hparse][nimble package]]
+- [[https://discord.gg/hjfYJCU][discord server]]
+- [[https://github.com/haxscramper/hparse][github]]
+- [[https://haxscramper.github.io/hparse-doc/src/hparse.html][API documentation]]
+- [[https://github.com/haxscramper/hparse#parser-generator][parser generator manual]]
+
 * Small utilities
 
 ** ~tscanf~

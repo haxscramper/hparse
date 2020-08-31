@@ -22,6 +22,12 @@ func matcherTypeGetter_Impl*[T, T1, T2, T3](
                                ): T =
     discard
 
+func anything*(input: string, argument: var string, start: int): int =
+  let diff = input.len - start
+  argument = input[start..^1]
+  return diff
+
+
 macro tscanf*(input, pattNode: string): untyped =
   ## Statically typed `scanf` wrapper. Similar to `=~` template from
   ## `re` module. The `ml` variable is implicitly declared.

@@ -152,7 +152,7 @@ func tok*[C, L, I](tree: ParseTree[C, L, I]): Token[C, L, I] =
 
 func `[]`*[C, L, I](
   tree: ParseTree[C, L, I], idx: int): ParseTree[C, L, I] =
-  ## Get `idx`th subnode from tree
+  ## Get `idx`'th subnode from tree
   tree.subnodes[idx]
 
 func `[]`*[C, L, I](

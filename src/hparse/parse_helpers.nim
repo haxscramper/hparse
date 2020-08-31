@@ -18,17 +18,17 @@ func topoSort*[Vertex](
   deps: proc(vert: Vertex): seq[Hash],
   idgen: proc(vert: Vertex): Hash,
   revese: bool = true): seq[Vertex] =
+  ## ..code-block::
+  ##     assert @[3, 2, 1] == topoSort(
+  ##       verts = @[1, 2, 3],
+  ##       deps = proc(v: int): seq[Hash] =
+  ##                  case v:
+  ##                    of 1: @[Hash(2), Hash(3)]
+  ##                    of 2: @[Hash(3)]
+  ##                    else: @[]
+  ##     )
 
   mixin items
-  runnableExamples:
-    assert @[3, 2, 1] == topoSort(
-      verts = @[1, 2, 3],
-      deps = proc(v: int): seq[Hash] =
-                 case v:
-                   of 1: @[Hash(2), Hash(3)]
-                   of 2: @[Hash(3)]
-                   else: @[]
-    )
 
   var adjList: Table[Hash, HashSet[Hash]]
   var vertData: Table[Hash, seq[Vertex]]

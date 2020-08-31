@@ -21,10 +21,9 @@ func `==`(lhs, rhs: Token): bool =
   )
 
 func mapString(s: string): seq[LTok] =
-  s.mapIt(
-    case it:
+  for ch in s:
+    case ch:
       of '[', ']', ',':
-        makeToken[TokenKind, string, LexInfo](tkPunct, $it)
+        result.add makeToken[TokenKind, string, LexInfo](tkPunct, $ch)
       else:
-        makeToken[TokenKind, string, LexInfo](tkIdent, $it)
-  )
+        result.add makeToken[TokenKind, string, LexInfo](tkIdent, $ch)
