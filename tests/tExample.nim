@@ -54,6 +54,32 @@ suite "Grammar exampl":
     echo tree3.treeRepr()
     echo "---\n\n"
 
+suite "Tree shape for EBNF vs BNF":
+  const defaultCategory = catNoCategory
+  test "A = *(A & C)":
+    echo treeCompare(@["a", "b", "a", "b"]) do:
+      A ::= *("a" & "b")
+
+  test "A = (A & B) & (C & D)":
+    echo treeCompare(@["a", "b", "c", "d"]) do:
+      A ::= ("a" & "b") & ("c" & "d")
+
+  test "A = !(B & C) & (D & E)":
+    echo treeCompare(@["a", "b", "c", "d"]) do:
+      A ::= !("a" & "b") & ("c" & "d")
+
+  test "A = (!B & C) & (D | E)":
+    echo treeCompare(@["a", "b", "c", "d"]) do:
+      A ::= (!"a" & "b") & ("c" & "d")
+
+  test "A = (A & (B & (D & E)))":
+    echo treeCompare(@["a", "b", "c", "d"]) do:
+      A ::= ("a" & ("b" & ("c" & "d")))
+
+  test "A = !*(B & C) & E":
+    discard
+
+
 suite "Tree actions examples":
   test "Drop tree action":
     echo ecompare(@["a", "b", "c"]) do:

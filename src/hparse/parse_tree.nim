@@ -334,7 +334,6 @@ func nodeKindStr*[C, L, I](node: ParseTree[C, L, I]): string =
     of ptkNTerm: node.nterm
     else:
       ""
-
 func treeReprImpl*[C, L, I](
   node: ParseTree[C, L, I],
   pref: seq[bool],
@@ -369,13 +368,13 @@ func treeReprImpl*[C, L, I](
     result[0] &= " +-> " & node[0].tok.exprRepr()
   else:
     for idx, subn in node.getSubnodes():
-      result &= subn.treeReprImpl(pref & @[
-        currIdx != parentMaxIdx
-      ],
-      node.len - 1, idx, kindPref)
+      result &= subn.treeReprImpl(
+        pref & @[ currIdx != parentMaxIdx ],
+        node.len - 1, idx, kindPref
+      )
 
 func treeRepr*[C, L, I](node: ParseTree[C, L, I], kindPref: string = ""): string =
-  treeReprImpl(node, @[], 0, 0, kindPref).join("\n")
+  treeReprImpl(node, @[], 0, 0, kindPref).join(" \n")
 
 func lispReprImpl*[C, L, I](
   node: ParseTree[C, L, I],

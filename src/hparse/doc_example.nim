@@ -102,7 +102,36 @@ template exampleParseBNF_noFix*(str: typed, grammar: untyped): untyped =
     initGrammarCalls(NoCategory, string)
     initGrammarImplCat(NoCategory, grammar)
 
-  let parser = newLL1Tableparser[NoCategory, string](name.toGrammar())
+  let parser = newLL1Tableparser[NoCategory, string](
+    name.toGrammar(),
+    dofixup = false,
+    retainGenerated = true
+  )
+
   var stream = exampleStream(str)
   let tree = parser.parse(stream)
   tree
+
+template treeCompare*(str: typed, grammar: untyped): untyped =
+  let ebnfTree: string = treeRepr(exampleParse(str, grammar))
+
+  var bnfTree: string
+  try:
+    bnfTree = treeRepr(exampleParseBnf_noFix(str, grammar))
+  except:
+    bnfTree = getCurrentExceptionMsg()
+
+  let instr {.inject.} = sideBySide(
+    "EBNF tree\n" & ebnfTree,
+    "BNF tree\n" & bnfTree
+  )
+
+  let grm {.inject.} = strip(astToStr(grammar))
+  let inToks {.inject.} = str
+
+  &"""
+Grammar: {grm}
+Input__: {inToks}
+
+{instr}
+"""
