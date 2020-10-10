@@ -12,7 +12,7 @@ srcDir        = "src"
 
 requires "nim >= 1.2.4"
 requires "regex"
-requires "hmisc", "hasts", "hpprint"
+requires "hmisc >= 0.6.0", "hasts", "hpprint"
 
 
 let
