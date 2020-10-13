@@ -10,6 +10,17 @@ import hpprint, hnimast
 
 import htreesitter
 
+
+template mapItSome*[T](opt: Option[T], expr: untyped): untyped =
+  type ResT = typeof((var it {.inject.}: typeof(opt.get()); expr))
+  var res: Option[ResT]
+  if opt.isSome():
+    let it {.inject.} = opt.get()
+    res = some(expr)
+
+  res
+
+
 {.experimental: "caseStmtMacros".}
 
 type
@@ -204,6 +215,115 @@ proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
   result.add makeGetKind(spec, inputLang).toNNode()
   result.add makeImplTsFor(inputLang)
 
+proc compileGrammar(
+  grammarJs: AbsFile,
+  scannerFile: Option[AbsFile] = none(AbsFile),
+  parserOut: AbsFile,
+  wrapperOut: AbsFile,
+  scannerOut: Option[AbsFile] = none(AbsFile),
+  junkDir: AbsDir) =
+
+  mkDir junkDir
+  withDir junkDir:
+    cpFile grammarJs, "grammar.js", lvlInfo
+
+    execShell("npm link regexp-util")
+    info "Linked regexp-util BS for node.js"
+
+    info "Generating tree-sitter files"
+    execShell makeGnuCmd("tree-sitter").withIt do:
+      it.cmd "generate"
+
+    debug "Done"
+
+    if Some(@file) ?= scannerFile:
+      cpFile file, "src/scanner.c", lvlInfo
+
+    var spec = "src/node-types.json".
+      parseFile().getElems().mapIt(it.toTree())
+
+    let grammar = "src/grammar.json".parseFile()
+
+    for extra in grammar["extras"]:
+      if extra.matches({"name": @name}):
+        spec.add Tree(ttype: name.asStr(), named: true)
+
+
+    let inputLang: string = grammar["name"].asStr()
+    wrapperOut.writeFile($createProcDefinitions(spec, inputLang))
+    info "Wrote generated wrappers to", wrapperOut
+
+    debug "Linking parser.c"
+    execShell makeGnuCmd("clang").withIt do:
+      it.arg "src/parser.c"
+      it - "c"
+      it - ("o", "", "parser.o")
+
+    if Some(@file) ?= scannerFile:
+      debug "Linking", file
+      execShell makeGnuCmd("clang").withIt do:
+        it.arg $file
+        it - "c"
+        it - ("o", "", "scanner.o")
+
+
+
+
+
+    info "tree-sitter object files generation ok"
+
+
+
+# proc compileTest(
+#   absParserUser: Option[AbsFile] = none(AbsFile),
+#   junkDir: AbsDir = AbsDir("/tmp/tree-sitter-test")) =
+  # withCleanDir(junkDir):
+  #   info "Started temporary directory"
+  #   info cwd()
+
+  #   rmDir "cache.d"
+
+    # let user = "paser_user.nim"
+    # if absParserUser.isSome():
+    #   cpFile absParserUser.get(), user, lvlInfo
+    #   try:
+    #     let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
+    #       it.subCmd "c"
+    #       it - "r"
+    #       it - ("nimcache", "cache.d")
+    #       it - ("forceBuild", "on")
+    #       for file in srcFiles:
+    #         # Link parser and external scanners
+    #         it - ("passL", file.dashedWords() & ".o")
+
+    #       # Link tree-sitter
+    #       it - ("passL", "-ltree-sitter")
+
+    #       it.arg user
+
+    #     echo stdout
+    #     echo stderr
+    #   except ShellError:
+    #     let ex = getCEx(ShellError)
+    #     echo ex.outstr
+    #     for line in ex.errstr.split("\n"):
+    #       if line.contains(["undefined reference"]):
+    #         if line.contains("external"):
+    #           once: err "Missing linking with external scanners"
+    #           info line.split(" ")[^1][1..^2]
+    #         elif line.contains("ts_"):
+    #           once: err "Missing linking with tree-sitter library"
+    #           info line
+    #         else:
+    #           once: err "Missing linking with other library"
+    #           info line
+
+    #       elif line.contains(["/bin/ld", "ld returned"]):
+    #         discard
+    #       else:
+    #         echo line
+
+
 
 let (args, opts) = paramStrs().splitCmdLine()
 
@@ -213,110 +333,21 @@ args.assertMatch([
   opt @parserUser,
   .._])
 
-scannerFile = some("scanner.c")
+scannerFile = some("scanner.cc")
 parserUser = some("parser_user.nim")
 
 if scannerFile.isNone():
   warn "No input scanner file"
 
-
-template mapItSome[T](opt: Option[T], expr: untyped): untyped =
-  type ResT = typeof((var it {.inject.}: typeof(opt.get()); expr))
-  var res: Option[ResT]
-  if opt.isSome():
-    let it {.inject.} = opt.get()
-    res = some(expr)
-
-  res
-
-let absGrammarJs: AbsFile = grammarJs.toAbsFile(true)
-let absScannerFile = scannerFile.mapItSome(it.toAbsFile(true))
-let absParserUser = parserUser.mapItSome(it.toAbsFile(true))
+let lang = "cpp"
 
 startColorLogger()
 
-withCleanDir("/tmp/tree-sitter-test"):
-  info "Started temporary directory"
-  info cwd()
-  cpFile absGrammarJs, "grammar.js", lvlInfo
-
-  info "Linking regexp-util BS for node.js"
-  execShell("npm link regexp-util")
-
-  info "Generating tree-sitter files"
-  execShell makeGnuCmd("tree-sitter").withIt do:
-    it.cmd "generate"
-
-  if Some(@file) ?= absScannerFile:
-    cpFile file, "src/scanner.c", lvlInfo
-
-  var spec = "src/node-types.json".
-    parseFile().getElems().mapIt(it.toTree())
-
-  let grammar = "src/grammar.json".parseFile()
-
-  for extra in grammar["extras"]:
-    if extra.matches({"name": @name}):
-      spec.add Tree(ttype: name.asStr(), named: true)
-
-
-  let inputLang: string = grammar["name"].asStr()
-  let file = inputLang & "_parser.nim"
-
-  file.writeFile($createProcDefinitions(spec, inputLang))
-  info "Wrote generated wrappers to", file
-
-  var srcFiles = @["parser.c"]
-
-  if Some(@file) ?= absScannerFile:
-    srcFiles.add "scanner.c"
-
-  for file in srcFiles:
-    debug "Linking with", file
-    execShell makeGnuCmd("clang").withIt do:
-      it.arg "src/" & file
-      it - "c"
-      it - ("o", "", file.dashedWords() & ".o")
-
-  info "tree-sitter object files generation ok"
-
-  rmDir "cache.d"
-
-  if Some(@user) ?= parserUser:
-    cpFile absParserUser.get(), user, lvlInfo
-    try:
-      let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
-        it.subCmd "c"
-        it - "r"
-        it - ("nimcache", "cache.d")
-        it - ("forceBuild", "on")
-        for file in srcFiles:
-          # Link parser and external scanners
-          it - ("passL", file.dashedWords() & ".o")
-
-        # Link tree-sitter
-        it - ("passL", "-ltree-sitter")
-
-        it.arg user
-
-      echo stdout
-      echo stderr
-    except ShellError:
-      let ex = getCEx(ShellError)
-      echo ex.outstr
-      for line in ex.errstr.split("\n"):
-        if line.contains(["undefined reference"]):
-          if line.contains("external"):
-            once: err "Missing linking with external scanners"
-            info line.split(" ")[^1][1..^2]
-          elif line.contains("ts_"):
-            once: err "Missing linking with tree-sitter library"
-            info line
-          else:
-            once: err "Missing linking with other library"
-            info line
-
-        elif line.contains(["/bin/ld", "ld returned"]):
-          discard
-        else:
-          echo line
+compileGrammar(
+  grammarJs = grammarJs.toAbsFile(true),
+  scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
+  parserOut = cwd() /. (lang & "paser.o"),
+  wrapperOut = cwd() /. (lang & "wrapper.nim"),
+  scannerOut = some(cwd() /. (lang & "scanner.o")),
+  junkDir = (AbsDir("/tmp") / lang)
+)
