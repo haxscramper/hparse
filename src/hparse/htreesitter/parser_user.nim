@@ -1,15 +1,9 @@
-import toml_parser, macros
+import cppwrapper, macros
 
-var parser = newTomlParser()
+var parser = newCppParser()
 
 let str = """
-# This is a TOML document.
-
-title = "TOML Example"
-
-[owner]
-name = "Tom Preston-Werner"
-dob = 1979-05-27T07:32:00-08:00 # First class dates
+int a = 12;
 """
 
 let tree = parser.parseString(str)

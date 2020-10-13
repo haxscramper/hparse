@@ -1,4 +1,4 @@
-import macros, options, sequtils, strutils, tables, logging
+import macros, options, sequtils, strutils, tables, logging, sets
 import compiler/ast
 
 import hmisc/[hexceptions, hdebug_misc]
@@ -76,9 +76,12 @@ func makeNodeKindName(lang: string): string = lang.makeNodeName() & "Kind"
 
 func makeKindEnum(spec: NodeSpec, lang: string): PEnum =
   result = PEnum(name: lang.makeNodeKindName(), exported: true)
+  var used: HashSet[string]
   for elem in spec:
-    result.values.add makeEnumField[PNode](
-      elem.ntermName(lang), comment = elem.ttype)
+    let name = elem.ntermName(lang)
+    if name notin used: # WARNING
+      used.incl name
+      result.values.add makeEnumField[PNode](name, comment = elem.ttype)
 
 
 func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
@@ -92,11 +95,15 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
     DotExpr[== id("node"), == id("tsNodeType")])
   var impl = makeTree[PNode](CaseStmt[== nameGet])
 
+  var used: HashSet[string]
   for elem in spec:
-    impl.add makeTree[PNode](OfBranch[
-        == newPLit(elem.ttype),
-        == newPIdent(elem.ntermName(lang))
-    ])
+    let name = elem.ttype
+    if name notin used:
+      used.incl name
+      impl.add makeTree[PNode](OfBranch[
+          == newPLit(name),
+          == newPIdent(elem.ntermName(lang))
+      ])
 
   let assrt = pquote do:
     raiseAssert("Invalid element name '" & `nameGet` & "'")
@@ -123,13 +130,14 @@ func makeImplTsFor(lang: string): PNode =
     nodeType: PNode = lang.makeNodeName().newPType().toNNode()
     langLen: PNode = newPLit(lang.len)
     langImpl: PNode = newPIdent("tree_sitter_" & lang)
+    newParserID: PNode = newPIdent("new" & lang.makeLangParserName())
 
   result.add pquote do:
     proc `langImpl`(): PtsLanguage {.importc, cdecl.}
     proc tsNodeType*(node: `nodeType`): string =
       $ts_node_type(TSNode(node))
 
-    proc newTomlParser*(): `parser` =
+    proc `newParserID`*(): `parser` =
       result = `parser`(ts_parser_new())
       discard ts_parser_set_language(PtsParser(result), `langImpl`())
 
@@ -259,6 +267,8 @@ proc compileGrammar(
       it - "c"
       it - ("o", "", "parser.o")
 
+      cpFile "parser.o", parserOut, lvlNotice
+
     if Some(@file) ?= scannerFile:
       debug "Linking", file
       execShell makeGnuCmd("clang").withIt do:
@@ -266,64 +276,13 @@ proc compileGrammar(
         it - "c"
         it - ("o", "", "scanner.o")
 
+      cpFile "scanner.o", scannerOut.get(), lvlNotice
+
 
 
 
 
     info "tree-sitter object files generation ok"
-
-
-
-# proc compileTest(
-#   absParserUser: Option[AbsFile] = none(AbsFile),
-#   junkDir: AbsDir = AbsDir("/tmp/tree-sitter-test")) =
-  # withCleanDir(junkDir):
-  #   info "Started temporary directory"
-  #   info cwd()
-
-  #   rmDir "cache.d"
-
-    # let user = "paser_user.nim"
-    # if absParserUser.isSome():
-    #   cpFile absParserUser.get(), user, lvlInfo
-    #   try:
-    #     let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
-    #       it.subCmd "c"
-    #       it - "r"
-    #       it - ("nimcache", "cache.d")
-    #       it - ("forceBuild", "on")
-    #       for file in srcFiles:
-    #         # Link parser and external scanners
-    #         it - ("passL", file.dashedWords() & ".o")
-
-    #       # Link tree-sitter
-    #       it - ("passL", "-ltree-sitter")
-
-    #       it.arg user
-
-    #     echo stdout
-    #     echo stderr
-    #   except ShellError:
-    #     let ex = getCEx(ShellError)
-    #     echo ex.outstr
-    #     for line in ex.errstr.split("\n"):
-    #       if line.contains(["undefined reference"]):
-    #         if line.contains("external"):
-    #           once: err "Missing linking with external scanners"
-    #           info line.split(" ")[^1][1..^2]
-    #         elif line.contains("ts_"):
-    #           once: err "Missing linking with tree-sitter library"
-    #           info line
-    #         else:
-    #           once: err "Missing linking with other library"
-    #           info line
-
-    #       elif line.contains(["/bin/ld", "ld returned"]):
-    #         discard
-    #       else:
-    #         echo line
-
-
 
 let (args, opts) = paramStrs().splitCmdLine()
 
@@ -346,8 +305,54 @@ startColorLogger()
 compileGrammar(
   grammarJs = grammarJs.toAbsFile(true),
   scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
-  parserOut = cwd() /. (lang & "paser.o"),
+  parserOut = cwd() /. (lang & "parser.o"),
   wrapperOut = cwd() /. (lang & "wrapper.nim"),
   scannerOut = some(cwd() /. (lang & "scanner.o")),
   junkDir = (AbsDir("/tmp") / lang)
 )
+
+
+rmDir "cache.d"
+let user = "parser_user.nim"
+try:
+  let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
+    it.subCmd "c"
+    it - "r"
+    it - ("nimcache", "cache.d")
+    it - ("forceBuild", "on")
+    for file in ["parser", "scanner"]:
+      # Link parser and external scanners
+      it - ("passL", lang & file & ".o")
+
+    it - ("passL", "-lstdc++")
+
+    # Link tree-sitter
+    it - ("passL", "-ltree-sitter")
+
+    it.arg user
+
+  echo stdout
+  echo stderr
+except ShellError:
+  let ex = getCEx(ShellError)
+  echo ex.outstr
+  echo ex.msg
+  for line in ex.errstr.split("\n"):
+    if line.contains(["undefined reference"]):
+      if line.contains("external"):
+        once: err "Missing linking with external scanners"
+        info line.split(" ")[^1][1..^2]
+      elif line.contains("ts_"):
+        once: err "Missing linking with tree-sitter library"
+        info line
+      elif line.contains("std::"):
+        once: err "Missing linking with C++ stdlib"
+        info line
+      else:
+        once: err "Missing linking with other library"
+        info line
+
+    elif line.contains(["/bin/ld", "ld returned"]):
+      discard
+    else:
+      echo line
