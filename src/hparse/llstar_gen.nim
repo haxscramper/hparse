@@ -32,11 +32,11 @@ func `[]=`*[C, L, I](cache: var ParseCache[C, L, I],
 
 func makeParseProcDef[C, L](name: string): NimNode =
   nnkProcDef.newTree(
-    newIdentNode(name),
+    ident(name),
     newEmptyNode(),
     nnkGenericParams.newTree(
       nnkIdentDefs.newTree(
-        newIdentNode("I"),
+        ident("I"),
         newEmptyNode(),
         newEmptyNode()
       )
@@ -395,6 +395,7 @@ template newLLStarParser*[C, L, I](
   body: typed,
   standalone: bool = false): untyped =
   # Trillion IQ hack
+  type LexType = C
   block:
     macro buildParser(): untyped =
       let grammar = toGrammar(body)
@@ -403,22 +404,22 @@ template newLLStarParser*[C, L, I](
         makeLLStarParser(grammar),
         nnkLetSection.newTree(
           nnkIdentDefs.newTree(
-            newIdentNode("cb"),
+            ident("cb"),
             newEmptyNode(),
             nnkBracketExpr.newTree(
-              newIdentNode(cbName),
-              newIdentNode($(typeof I))
+              ident(cbName),
+              ident($(typeof I))
             )
           )
         ),
         if standalone:
           nnkLetSection.newTree(
             nnkIdentDefs.newTree(
-              newIdentNode("parser"),
+              ident("parser"),
               newEmptyNode(),
               nnkCall.newTree(
-                newIdentNode("initLLStarParser"),
-                newIdentNode("cb"))))
+                ident("initLLStarParser"),
+                ident("cb"))))
         else:
           newCall("initLLStarParser", ident "cb")
       )

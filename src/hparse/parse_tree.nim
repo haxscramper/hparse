@@ -203,21 +203,21 @@ func toDotGraphPretty*[C, L, I](
   tree: ParseTree[C, L, I],
   kindPref: string,
   bottomTokens: bool,
-  colorCb: TokenStyleCb): Graph =
-  result.styleNode = Node(shape: nsaRect)
-  var tokNodes: seq[Node]
+  colorCb: TokenStyleCb): DotGraph =
+  result.styleNode = DotNode(shape: nsaRect)
+  var tokNodes: seq[DotNode]
 
   tree.iterateItBFS(it.getSubnodes(), it.kind != ptkToken):
-    let itaddr = toNodeId(cast[int](addr it[]))
-    var nextaddr = toNodeId(cast[int](addr it[]) + 1)
+    let itaddr = toDotNodeId(cast[int](addr it[]))
+    var nextaddr = toDotNodeId(cast[int](addr it[]) + 1)
 
     if it.kind == ptkToken:
       when hasPosInfo(it.tok):
-        nextaddr = toNodeId(it.tok.getPosInfo() + 1)
+        nextaddr = toDotNodeId(it.tok.getPosInfo() + 1)
 
-      result.addEdge(makeEdge(itaddr, nextaddr))
+      result.addEdge(makeDotEdge(itaddr, nextaddr))
 
-      let tokNode = makeNode(
+      let tokNode = makeDotNode(
         nextaddr,
         ($it.tok).quote(),
         nsaCircle,
@@ -230,7 +230,7 @@ func toDotGraphPretty*[C, L, I](
       else:
         result.addNode tokNode
 
-    result.addNode(makeNode(
+    result.addNode(makeDotNode(
       itaddr,
       label = case it.kind:
         of ptkNTerm: it.nterm
@@ -256,20 +256,21 @@ func toDotGraphPretty*[C, L, I](
     ))
 
     for tr in subt:
-      result.addEdge(makeEdge(
+      result.addEdge(makeDotEdge(
         itaddr,
-        toNodeId(addr tr[])
+        toDotNodeId(addr tr[])
       ))
 
   if bottomTokens:
-    result.addSubgraph(Graph(
+    result.addSubgraph(DotGraph(
       nodes: tokNodes,
       isWrapper: true,
       noderank: gnrSame
     ))
 
-func toDotGraphPrecise*[C, L, I](tree: ParseTree[C, L, I], kindPref: string): Graph =
-  result.styleNode = Node(shape: nsaRect)
+func toDotGraphPrecise*[C, L, I](
+  tree: ParseTree[C, L, I], kindPref: string): DotGraph =
+  result.styleNode = DotNode(shape: nsaRect)
   tree.iterateItBFS(it.subnodes, it.kind != ptkToken):
     let itaddr: int = cast[int](addr it[])
     let label = case it.kind:
@@ -277,8 +278,8 @@ func toDotGraphPrecise*[C, L, I](tree: ParseTree[C, L, I], kindPref: string): Gr
       of ptkToken: fmt("{it.tok.cat.tokKindStr(kindPref)}\n'{it.tok}'")
       of ptkList: it.nodeKindStr()
 
-    result.addNode(makeNode(
-      itaddr.toNodeId(),
+    result.addNode(makeDotNode(
+      itaddr.toDotNodeId(),
       label = label & (
         block:
           if tree.action != taDefault:
@@ -289,9 +290,9 @@ func toDotGraphPrecise*[C, L, I](tree: ParseTree[C, L, I], kindPref: string): Gr
     ))
 
     for tr in subt:
-      result.addEdge(makeEdge(
-        itaddr.toNodeId(),
-        toNodeId(addr tr[])
+      result.addEdge(makeDotEdge(
+        itaddr.toDotNodeId(),
+        toDotNodeId(addr tr[])
       ))
 
 func toDotGraph*[C, L, I](
@@ -300,7 +301,7 @@ func toDotGraph*[C, L, I](
   preciseRepr: bool = false,
   bottomTokens: bool = false,
   colorCb: TokenStyleCb[C, L, I] = TokenStyleCb[C, L, I](),
-  idshift: int = 0): Graph =
+  idshift: int = 0): DotGraph =
   ##[
 
 ## Parameters

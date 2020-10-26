@@ -752,11 +752,13 @@ func exprRepr*[C, L](stateset: GItemSet,
 
   return resbuf.join("\n")
 
-func dotNodeRepr*[C, L](stateset: GItemSet,
-                        gr: BnfGrammar[C, L],
-                        conf: GrammarPrintConf = defaultGrammarPrintConf):
-                          Node =
-  result = makeNode(
+func dotNodeRepr*[C, L](
+  stateset: GItemSet,
+  gr: BnfGrammar[C, L],
+  conf: GrammarPrintConf = defaultGrammarPrintConf
+    ): DotNode =
+
+  result = makeDotNode(
     stateset.id.toNodeId(),
     label =
       "      " & $stateset.id & "      \n" &

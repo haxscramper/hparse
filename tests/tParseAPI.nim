@@ -207,6 +207,8 @@ suite "Predicate token":
 
   test "tExample standalone":
     const defaultCategory = catNoCategory
+    type CatType = NoCategory
+    type LexType = string
     initGrammarConst[NoCategory, string](grammar):
       A ::= *(B | C)
       B ::= [[ it.startsWith("@") ]]

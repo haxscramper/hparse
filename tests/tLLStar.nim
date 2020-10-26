@@ -1,4 +1,4 @@
-import sugar, strutils, sequtils, strformat, options
+import std/[sugar, strutils, sequtils, strformat, options, macros]
 
 import hmisc/helpers
 import ../src/hparse/[

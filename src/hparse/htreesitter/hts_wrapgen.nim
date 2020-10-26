@@ -312,47 +312,48 @@ compileGrammar(
 )
 
 
-rmDir "cache.d"
-let user = "parser_user.nim"
-try:
-  let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
-    it.subCmd "c"
-    it - "r"
-    it - ("nimcache", "cache.d")
-    it - ("forceBuild", "on")
-    for file in ["parser", "scanner"]:
-      # Link parser and external scanners
-      it - ("passL", lang & file & ".o")
+if false:
+  rmDir "cache.d"
+  let user = "parser_user.nim"
+  try:
+    let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
+      it.subCmd "c"
+      it - "r"
+      it - ("nimcache", "cache.d")
+      it - ("forceBuild", "on")
+      for file in ["parser", "scanner"]:
+        # Link parser and external scanners
+        it - ("passL", lang & file & ".o")
 
-    it - ("passL", "-lstdc++")
+      it - ("passL", "-lstdc++")
 
-    # Link tree-sitter
-    it - ("passL", "-ltree-sitter")
+      # Link tree-sitter
+      it - ("passL", "-ltree-sitter")
 
-    it.arg user
+      it.arg user
 
-  echo stdout
-  echo stderr
-except ShellError:
-  let ex = getCEx(ShellError)
-  echo ex.outstr
-  echo ex.msg
-  for line in ex.errstr.split("\n"):
-    if line.contains(["undefined reference"]):
-      if line.contains("external"):
-        once: err "Missing linking with external scanners"
-        info line.split(" ")[^1][1..^2]
-      elif line.contains("ts_"):
-        once: err "Missing linking with tree-sitter library"
-        info line
-      elif line.contains("std::"):
-        once: err "Missing linking with C++ stdlib"
-        info line
+    echo stdout
+    echo stderr
+  except ShellError:
+    let ex = getCEx(ShellError)
+    echo ex.outstr
+    echo ex.msg
+    for line in ex.errstr.split("\n"):
+      if line.contains(["undefined reference"]):
+        if line.contains("external"):
+          once: err "Missing linking with external scanners"
+          info line.split(" ")[^1][1..^2]
+        elif line.contains("ts_"):
+          once: err "Missing linking with tree-sitter library"
+          info line
+        elif line.contains("std::"):
+          once: err "Missing linking with C++ stdlib"
+          info line
+        else:
+          once: err "Missing linking with other library"
+          info line
+
+      elif line.contains(["/bin/ld", "ld returned"]):
+        discard
       else:
-        once: err "Missing linking with other library"
-        info line
-
-    elif line.contains(["/bin/ld", "ld returned"]):
-      discard
-    else:
-      echo line
+        echo line

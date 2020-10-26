@@ -1,4 +1,5 @@
-import hparse, hparse/llstar_gen, options, parseutils, sequtils
+import hparse, hparse/llstar_gen
+import std/[macros, options, parseutils, sequtils]
 import hparse/tokenize
 
 type

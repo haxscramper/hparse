@@ -82,10 +82,10 @@ func toInitCalls*[C, L](etok: ExpectedToken[C, L]): NimNode =
       result = parseStmt(etok.lexPredLiteral)
       if result[0][0] == ident("makeExpTokenPredBuilder"):
         let lexT = ident($typeof(L))
-        result = quote do:
-          block:
-            type LexType {.inject.} = `lexT`
-            `result`
+        # result = quote do:
+        #   block:
+        #     type LexType {.inject.} = `lexT`
+        #     `result`
 
       # debugecho "\e[31mLEX FUNCALL ----\e[39m\n", result.toStrLit().strVal()
     else:
