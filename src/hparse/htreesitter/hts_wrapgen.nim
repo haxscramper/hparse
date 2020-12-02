@@ -1,9 +1,9 @@
-import macros, options, sequtils, strutils, tables, logging, sets
+import std/[macros, options, sequtils, strutils,
+            tables, logging, sets, sha1]
 import compiler/ast
-import cligen
 
 import hmisc/[hexceptions, hdebug_misc]
-import hmisc/other/[hjson, hshell, oswrap, colorlogger]
+import hmisc/other/[hjson, hshell, oswrap, colorlogger, hcligen]
 import hmisc/algo/[clformat, halgorithm, hstring_algo]
 import hpprint, hnimast
 import htreesitter
@@ -221,6 +221,28 @@ proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
   result.add makeGetKind(spec, inputLang).toNNode()
   result.add makeImplTsFor(inputLang)
 
+
+proc getAppCachedHashes*(): seq[string] =
+  let cacheDir = getAppCacheDir()
+  let cachedFiles = (cacheDir /. "cachedFiles.txt")
+  if cachedFiles.fileExists():
+    return cachedFiles.readFile().split("\n")
+
+proc setAppCachedHashes*(files: seq[string]) =
+  (getAppCacheDir() /. "cachedFiles.txt").writeFile(files.join("\n"))
+
+proc noChangesForFile*(file: AnyFile): bool =
+  if $secureHashFile(file.getStr()) in getAppCachedHashes():
+    true
+  else:
+    false
+
+proc rememberFileHash(file: AnyFile) =
+  setAppCachedHashes(
+    getAppCachedHashes() &
+    $secureHashFile(file.getStr())
+  )
+
 proc compileGrammar(
   grammarJs: AbsFile,
   scannerFile: Option[AbsFile] = none(AbsFile),
@@ -229,11 +251,23 @@ proc compileGrammar(
   scannerOut: Option[AbsFile] = none(AbsFile),
   junkDir: AbsDir) =
 
+
+  if noChangesForFile(grammarJs) and
+     (scannerFile.isNone() or scannerFile.get().noChangesForFile()):
+    info "No changes for input files", grammarJs
+    return
+  else:
+    info "Input file changed"
+    rememberFileHash(grammarJs)
+    if scannerFile.isSome():
+      rememberFileHash(scannerFile.get())
+
   mkDir junkDir
   withDir junkDir:
     cpFile grammarJs, RelFile("grammar.js")
 
-    execShell(shCmd("npm", "link", "regexp-util"))
+    execShell(shCmd(npm, --silent, link, "regexp-util"))
+    execShell(shCmd(npm, --silent, link, "tree-sitter-c"))
     info "Linked regexp-util BS for node.js"
 
     info "Generating tree-sitter files"
@@ -266,7 +300,8 @@ proc compileGrammar(
       it - "c"
       it - ("o", "", "parser.o")
 
-      cpFile RelFile("parser.o"), parserOut
+    cpFile RelFile("parser.o"), parserOut
+    debug "Copied parser file to", parserOut
 
     if scannerFile.isSome():
       let file = scannerFile.get()
@@ -277,45 +312,49 @@ proc compileGrammar(
         it - ("o", "", "scanner.o")
 
       cpFile RelFile("scanner.o"), scannerOut.get()
+      debug "Compied compiled scanner to", scannerOut.get()
 
     info "tree-sitter object files generation ok"
 
 
-echo getAppBasename()
-
 proc grammarFromFile(
-  file: RelFile,
   lang: string,
   grammarJs: RelFile = RelFile("grammar.js"),
   scannerFile: Option[RelFile] = none(RelFile),
-  parserUser: Option[RelFile] = none(RelFile)) =
+  parserUser: Option[RelFile] = none(RelFile),
+  cacheDir: AbsDir = getAppCacheDir(),
+  nimcacheDir: Option[FsDir] = none(FsDir)) =
+  info "Using cache dir", cacheDir
 
   if scannerFile.isNone():
     warn "No input scanner file"
 
-  startColorLogger()
-
   compileGrammar(
     grammarJs = grammarJs.toAbsFile(true),
     scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
-    parserOut = cwd() /. (lang & "parser.o"),
-    wrapperOut = cwd() /. (lang & "wrapper.nim"),
-    scannerOut = some(cwd() /. (lang & "scanner.o")),
-    junkDir = (AbsDir("/tmp") / lang)
+    parserOut = cwd() /. (lang & "_parser.o"),
+    wrapperOut = cwd() /. (lang & "_wrapper.nim"),
+    scannerOut = some(cwd() /. (lang & "_scanner.o")),
+    junkDir = cacheDir / lang
   )
 
-  rmDir "cache.d"
+
   let user = "parser_user.nim"
   try:
     let (stdout, stderr, code) = runShell makeNimShellCmd("nim").withIt do:
       it.cmd "c"
       it - "r"
-      it - ("nimcache", "cache.d")
+      if nimcacheDir.isSome():
+        it - ("nimcache", nimcacheDir.get().getStr())
+
+      it - ("warnings", "off")
+
       it - ("forceBuild", "on")
-      for file in ["parser", "scanner"]:
+      for file in ["_parser", "_scanner"]:
         # Link parser and external scanners
         it - ("passL", lang & file & ".o")
 
+      # TODO make linking with C++ stdlib optional
       it - ("passL", "-lstdc++")
 
       # Link tree-sitter
@@ -348,3 +387,15 @@ proc grammarFromFile(
         discard
       else:
         echo line
+
+when isMainModule:
+  startColorLogger()
+  if paramCount() == 0:
+    grammarFromFile(
+      lang = "cpp",
+      scannerFile = some RelFile("scanner.cc"),
+    )
+  else:
+    dispatchMulti(
+      [grammarFromFile]
+    )
