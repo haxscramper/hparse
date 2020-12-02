@@ -1,13 +1,11 @@
 import macros, options, sequtils, strutils, tables, logging, sets
 import compiler/ast
+import cligen
 
 import hmisc/[hexceptions, hdebug_misc]
 import hmisc/other/[hjson, hshell, oswrap, colorlogger]
 import hmisc/algo/[clformat, halgorithm, hstring_algo]
-import hmisc/macros/matching
-
 import hpprint, hnimast
-
 import htreesitter
 
 
@@ -49,7 +47,8 @@ func toTree(js: JsonNode): Tree =
     named: js["named"].asBool()
   )
 
-  if js.matches({"children": @ch}):
+  if "children" in js:
+    let ch = js["children"]
     result.children = some TreeChildren(
       multiple: ch["multiple"].asBool(),
       required: ch["required"].asBool(),
@@ -91,24 +90,23 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
     some newPType(lang.makeNodeKindName())
   )
 
-  let nameGet = makeTree[PNode](
-    DotExpr[== id("node"), == id("tsNodeType")])
-  var impl = makeTree[PNode](CaseStmt[== nameGet])
+  let nameGet = nnkDotExpr.newPTree("node".id, "tsNodeType".id)
+  var impl = nnkCaseStmt.newPTree(nameGet)
 
   var used: HashSet[string]
   for elem in spec:
     let name = elem.ttype
     if name notin used:
       used.incl name
-      impl.add makeTree[PNode](OfBranch[
-          == newPLit(name),
-          == newPIdent(elem.ntermName(lang))
-      ])
+      impl.add nnkOfBranch.newPTree(
+        newPLit(name),
+        newPIdent(elem.ntermName(lang))
+      )
 
   let assrt = pquote do:
     raiseAssert("Invalid element name '" & `nameGet` & "'")
 
-  impl.add makeTree[PNode](Else[== assrt])
+  impl.add nnkElse.newPTree(assrt)
 
   result.impl = impl
 
@@ -233,19 +231,19 @@ proc compileGrammar(
 
   mkDir junkDir
   withDir junkDir:
-    cpFile grammarJs, "grammar.js", lvlInfo
+    cpFile grammarJs, RelFile("grammar.js")
 
-    execShell("npm link regexp-util")
+    execShell(shCmd("npm", "link", "regexp-util"))
     info "Linked regexp-util BS for node.js"
 
     info "Generating tree-sitter files"
-    execShell makeGnuCmd("tree-sitter").withIt do:
-      it.cmd "generate"
+    execShell shCmd("tree-sitter", "generate")
 
     debug "Done"
 
-    if Some(@file) ?= scannerFile:
-      cpFile file, "src/scanner.c", lvlInfo
+    if scannerFile.isSome():
+      let file = scannerFile.get()
+      cpFile file, RelFile("src/scanner.c")
 
     var spec = "src/node-types.json".
       parseFile().getElems().mapIt(it.toTree())
@@ -253,7 +251,8 @@ proc compileGrammar(
     let grammar = "src/grammar.json".parseFile()
 
     for extra in grammar["extras"]:
-      if extra.matches({"name": @name}):
+      if "name" in extra:
+        let name = extra["name"]
         spec.add Tree(ttype: name.asStr(), named: true)
 
 
@@ -262,62 +261,54 @@ proc compileGrammar(
     info "Wrote generated wrappers to", wrapperOut
 
     debug "Linking parser.c"
-    execShell makeGnuCmd("clang").withIt do:
+    execShell makeGnuShellCmd("clang").withIt do:
       it.arg "src/parser.c"
       it - "c"
       it - ("o", "", "parser.o")
 
-      cpFile "parser.o", parserOut, lvlNotice
+      cpFile RelFile("parser.o"), parserOut
 
-    if Some(@file) ?= scannerFile:
+    if scannerFile.isSome():
+      let file = scannerFile.get()
       debug "Linking", file
-      execShell makeGnuCmd("clang").withIt do:
+      execShell makeGnuShellCmd("clang").withIt do:
         it.arg $file
         it - "c"
         it - ("o", "", "scanner.o")
 
-      cpFile "scanner.o", scannerOut.get(), lvlNotice
-
-
-
-
+      cpFile RelFile("scanner.o"), scannerOut.get()
 
     info "tree-sitter object files generation ok"
 
-let (args, opts) = paramStrs().splitCmdLine()
 
-args.assertMatch([
-  opt @grammarJs or "grammar.js",
-  opt @scannerFile,
-  opt @parserUser,
-  .._])
+echo getAppBasename()
 
-scannerFile = some("scanner.cc")
-parserUser = some("parser_user.nim")
+proc grammarFromFile(
+  file: RelFile,
+  lang: string,
+  grammarJs: RelFile = RelFile("grammar.js"),
+  scannerFile: Option[RelFile] = none(RelFile),
+  parserUser: Option[RelFile] = none(RelFile)) =
 
-if scannerFile.isNone():
-  warn "No input scanner file"
+  if scannerFile.isNone():
+    warn "No input scanner file"
 
-let lang = "cpp"
+  startColorLogger()
 
-startColorLogger()
+  compileGrammar(
+    grammarJs = grammarJs.toAbsFile(true),
+    scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
+    parserOut = cwd() /. (lang & "parser.o"),
+    wrapperOut = cwd() /. (lang & "wrapper.nim"),
+    scannerOut = some(cwd() /. (lang & "scanner.o")),
+    junkDir = (AbsDir("/tmp") / lang)
+  )
 
-compileGrammar(
-  grammarJs = grammarJs.toAbsFile(true),
-  scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
-  parserOut = cwd() /. (lang & "parser.o"),
-  wrapperOut = cwd() /. (lang & "wrapper.nim"),
-  scannerOut = some(cwd() /. (lang & "scanner.o")),
-  junkDir = (AbsDir("/tmp") / lang)
-)
-
-
-if false:
   rmDir "cache.d"
   let user = "parser_user.nim"
   try:
-    let (stdout, stderr, code) = runShell makeNimCmd("nim").withIt do:
-      it.subCmd "c"
+    let (stdout, stderr, code) = runShell makeNimShellCmd("nim").withIt do:
+      it.cmd "c"
       it - "r"
       it - ("nimcache", "cache.d")
       it - ("forceBuild", "on")
