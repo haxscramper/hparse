@@ -266,42 +266,22 @@ proc noChangesForFile*(file: AnyFile): bool =
   else:
     false
 
-proc rememberFileHash(file: AnyFile) =
-  setAppCachedHashes(
-    getAppCachedHashes() &
-    $secureHashFile(file.getStr())
-  )
-
 proc compileGrammar(
   grammarJs: AbsFile,
+  langPrefix: string,
   scannerFile: Option[AbsFile] = none(AbsFile),
-  parserOut: AbsFile,
-  wrapperOut: AbsFile,
-  scannerOut: Option[AbsFile] = none(AbsFile),
   junkDir: AbsDir,
-  forceBuild: bool = false) =
+  forceBuild: bool = false): string =
 
+  let junkDir = junkDir / langPrefix
 
-  if forceBuild:
-    notice "Force buil requested, flushing cache"
-    setAppCachedHashes(@[])
-  elif noChangesForFile(grammarJs) and
-     (scannerFile.isNone() or scannerFile.get().noChangesForFile()):
-    info "No changes for input files", grammarJs
-    return
-  else:
-    info "Input file changed"
-    rememberFileHash(grammarJs)
-    if scannerFile.isSome():
-      rememberFileHash(scannerFile.get())
+  info "Using cache dir", junkDir
+
+  let startDir = cwd()
 
   mkDir junkDir
   withDir junkDir:
     cpFile grammarJs, RelFile("grammar.js")
-
-    execShell(shCmd(npm, --silent, link, "regexp-util"))
-    execShell(shCmd(npm, --silent, link, "tree-sitter-c"))
-    info "Linked regexp-util BS for node.js"
 
     info "Generating tree-sitter files"
     execShell shCmd("tree-sitter", "generate")
@@ -329,8 +309,17 @@ proc compileGrammar(
         spec.externals.add extern["name"].asStr()
 
 
-    let inputLang: string = grammar["name"].asStr()
-    wrapperOut.writeFile($createProcDefinitions(spec, inputLang))
+    let lang: string = grammar["name"].asStr()
+
+    let
+      parserOut = startDir /. (lang & "_parser.o")
+      wrapperOut = startDir /. (lang & "_wrapper.nim")
+      scannerOut = if scannerFile.isSome():
+                     some(startDir /. (lang & "_scanner.o"))
+                   else:
+                     none(AbsFile)
+
+    wrapperOut.writeFile($createProcDefinitions(spec, lang))
     info "Wrote generated wrappers to", wrapperOut
 
     debug "Linking parser.c"
@@ -354,93 +343,89 @@ proc compileGrammar(
       debug "Compied compiled scanner to", scannerOut.get()
 
     info "tree-sitter object files generation ok"
+    return lang
 
 
 proc grammarFromFile(
-  lang: string,
   grammarJs: RelFile = RelFile("grammar.js"),
   scannerFile: Option[RelFile] = none(RelFile),
   parserUser: Option[RelFile] = none(RelFile),
   cacheDir: AbsDir = getAppCacheDir(),
   nimcacheDir: Option[FsDir] = none(FsDir),
-  forceBuild: bool = false) =
-  info "Using cache dir", cacheDir
+  forceBuild: bool = false,
+  langPrefix: string = "") =
 
   if scannerFile.isNone():
     warn "No input scanner file"
 
-  compileGrammar(
+  let lang = compileGrammar(
     grammarJs = grammarJs.toAbsFile(true),
+    langPrefix = langPrefix,
     scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
-    parserOut = cwd() /. (lang & "_parser.o"),
-    wrapperOut = cwd() /. (lang & "_wrapper.nim"),
-    scannerOut = if scannerFile.isSome():
-                   some(cwd() /. (lang & "_scanner.o"))
-                 else:
-                   none(AbsFile)
-    ,
-    junkDir = cacheDir / lang,
+    junkDir = cacheDir,
     forceBuild = forceBuild
   )
 
 
-  let user = "parser_user.nim"
-  try:
-    let (stdout, stderr, code) = runShell makeNimShellCmd("nim").withIt do:
-      it.cmd "c"
-      it - "r"
-      if nimcacheDir.isSome():
-        it - ("nimcache", nimcacheDir.get().getStr())
+  if parserUser.isSome():
+    info "Test parser user file is some. Compiling ..."
+    let user = parserUser.get()
+    try:
+      let (stdout, stderr, code) = runShell makeNimShellCmd("nim").withIt do:
+        it.cmd "c"
+        it - "r"
+        if nimcacheDir.isSome():
+          it - ("nimcache", nimcacheDir.get().getStr())
 
-      it - ("warnings", "off")
+        it - ("warnings", "off")
 
-      it - ("forceBuild", "on")
-      if scannerFile.isSome():
-        it - ("passL", lang & "_scanner.o")
+        it - ("forceBuild", "on")
+        # if scannerFile.isSome():
+        #   it - ("passL", lang & "_scanner.o")
 
-      # Link parser 
-      it - ("passL", lang & "_parser.o")
+        # # Link parser
+        # it - ("passL", lang & "_parser.o")
 
-      # TODO make linking with C++ stdlib optional
-      it - ("passL", "-lstdc++")
+        # TODO make linking with C++ stdlib optional
+        it - ("passL", "-lstdc++")
 
-      # Link tree-sitter
-      it - ("passL", "-ltree-sitter")
+        # Link tree-sitter
+        it - ("passL", "-ltree-sitter")
 
-      it.arg user
+        it.arg user
 
-    echo stdout
-    echo stderr
-  except ShellError:
-    let ex = getCEx(ShellError)
-    echo ex.outstr
-    # echo ex.msg
-    for line in ex.errstr.split("\n"):
-      if line.contains(["undefined reference"]):
-        if line.contains("external"):
-          once: err "Missing linking with external scanners"
-          info line.split(" ")[^1][1..^2]
-        elif line.contains("ts_"):
-          once: err "Missing linking with tree-sitter library"
-          info line
-        elif line.contains("std::"):
-          once: err "Missing linking with C++ stdlib"
-          info line
+      echo stdout
+      echo stderr
+    except ShellError:
+      let ex = getCEx(ShellError)
+      echo ex.outstr
+      # echo ex.msg
+      for line in ex.errstr.split("\n"):
+        if line.contains(["undefined reference"]):
+          if line.contains("external"):
+            once: err "Missing linking with external scanners"
+            info line.split(" ")[^1][1..^2]
+          elif line.contains("ts_"):
+            once: err "Missing linking with tree-sitter library"
+            info line
+          elif line.contains("std::"):
+            once: err "Missing linking with C++ stdlib"
+            info line
+          else:
+            once: err "Missing linking with other library"
+            info line
+
+        elif line.contains(["/bin/ld", "ld returned"]):
+          discard
         else:
-          once: err "Missing linking with other library"
-          info line
-
-      elif line.contains(["/bin/ld", "ld returned"]):
-        discard
-      else:
-        echo line
+          echo line
 
 when isMainModule:
   startColorLogger()
   if paramCount() == 0:
     grammarFromFile(
-      lang = "test",
-      forceBuild = true
+      forceBuild = true,
+      parserUser = some RelFile("parser_user.nim")
     )
   else:
     dispatchMulti(

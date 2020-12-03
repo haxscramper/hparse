@@ -1,7 +1,6 @@
-*
-!.gitignore
-!hts_wrapgen.nim
-!parser_user.nim
-!grammar.js
-!htreesitter.nim
-!nim.cfg
+cpp*
+test*
+otherTest*
+*.cc
+cache*
+src/*
