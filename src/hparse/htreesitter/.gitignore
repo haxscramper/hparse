@@ -1,0 +1,6 @@
+*
+!.gitignore
+!hts_wrapgen.nim
+!parser_user.nim
+!grammar.js
+!htreesitter.nim

@@ -1,4 +1,4 @@
-import cppwrapper, macros
+import test_wrapper, macros
 # import hmisc/macros/matching
 import htreesitter
 
@@ -9,24 +9,17 @@ import htreesitter
 # {.passl: "cpp_scanner.o".}
 # {.passl: "cpp_parser.o".}
 
-var parser = newCppParser()
+var parser = newTestParser()
 
 var str = """
-int a = 12;
+hello
 """
-
-var currCppStr: ptr string
 
 let tree = parser.parseString(str)
 
-currCppStr = addr str
+let currStr: ptr string = addr str
 
 echo tree.treeRepr(str)
 
-proc strVal(node: CppNode): string =
-  currCppStr[][node.slice()]
-
-# case tree[0]:
-#   of Declaration[@dtype, .._]:
-#     echo "first is declaration with type ", dtype.strVal()
-#     echo cast[int](TsNode(dtype).id)
+proc strVal(node: TestNode): string =
+  currStr[][node.slice()]

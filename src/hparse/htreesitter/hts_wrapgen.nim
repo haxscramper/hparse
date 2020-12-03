@@ -70,7 +70,8 @@ func ntermName(elem: Tree, lang: string): string =
 
 func makeNodeName(lang: string): string = lang.capitalizeAscii() & "Node"
 func makeNodeKindName(lang: string): string = lang.makeNodeName() & "Kind"
-
+func langErrorName(lang: string): string =
+  lang & "SyntaxError"
 
 
 func makeKindEnum(spec: NodeSpec, lang: string): PEnum =
@@ -81,6 +82,11 @@ func makeKindEnum(spec: NodeSpec, lang: string): PEnum =
     if name notin used: # WARNING
       used.incl name
       result.values.add makeEnumField[PNode](name, comment = elem.ttype)
+
+  result.values.add makeEnumField[PNode](
+    lang.langErrorName(),
+    comment = "Tree-sitter parser syntax error"
+  )
 
 
 func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
@@ -102,6 +108,11 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
         newPLit(name),
         newPIdent(elem.ntermName(lang))
       )
+
+  impl.add nnkOfBranch.newPTree(
+    newPLit("ERROR"),
+    newPIdent(lang & "SyntaxError")
+  )
 
   let assrt = pquote do:
     raiseAssert("Invalid element name '" & `nameGet` & "'")
@@ -249,10 +260,14 @@ proc compileGrammar(
   parserOut: AbsFile,
   wrapperOut: AbsFile,
   scannerOut: Option[AbsFile] = none(AbsFile),
-  junkDir: AbsDir) =
+  junkDir: AbsDir,
+  forceBuild: bool = false) =
 
 
-  if noChangesForFile(grammarJs) and
+  if forceBuild:
+    notice "Force buil requested, flushing cache"
+    setAppCachedHashes(@[])
+  elif noChangesForFile(grammarJs) and
      (scannerFile.isNone() or scannerFile.get().noChangesForFile()):
     info "No changes for input files", grammarJs
     return
@@ -323,7 +338,8 @@ proc grammarFromFile(
   scannerFile: Option[RelFile] = none(RelFile),
   parserUser: Option[RelFile] = none(RelFile),
   cacheDir: AbsDir = getAppCacheDir(),
-  nimcacheDir: Option[FsDir] = none(FsDir)) =
+  nimcacheDir: Option[FsDir] = none(FsDir),
+  forceBuild: bool = false) =
   info "Using cache dir", cacheDir
 
   if scannerFile.isNone():
@@ -334,8 +350,13 @@ proc grammarFromFile(
     scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
     parserOut = cwd() /. (lang & "_parser.o"),
     wrapperOut = cwd() /. (lang & "_wrapper.nim"),
-    scannerOut = some(cwd() /. (lang & "_scanner.o")),
-    junkDir = cacheDir / lang
+    scannerOut = if scannerFile.isSome():
+                   some(cwd() /. (lang & "_scanner.o"))
+                 else:
+                   none(AbsFile)
+    ,
+    junkDir = cacheDir / lang,
+    forceBuild = forceBuild
   )
 
 
@@ -350,9 +371,11 @@ proc grammarFromFile(
       it - ("warnings", "off")
 
       it - ("forceBuild", "on")
-      for file in ["_parser", "_scanner"]:
-        # Link parser and external scanners
-        it - ("passL", lang & file & ".o")
+      if scannerFile.isSome():
+        it - ("passL", lang & "_scanner.o")
+
+      # Link parser 
+      it - ("passL", lang & "_parser.o")
 
       # TODO make linking with C++ stdlib optional
       it - ("passL", "-lstdc++")
@@ -392,8 +415,8 @@ when isMainModule:
   startColorLogger()
   if paramCount() == 0:
     grammarFromFile(
-      lang = "cpp",
-      scannerFile = some RelFile("scanner.cc"),
+      lang = "test",
+      forceBuild = true
     )
   else:
     dispatchMulti(
