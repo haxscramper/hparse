@@ -42,7 +42,10 @@ type
     get_column: proc(lex: ptr TSLexer): cuint {.cdecl.}
     is_at_included_range_start: proc(lex: ptr TSLexer) {.cdecl.}
 
-proc nextRune*(lex: var TsLexer): Rune =
+proc currRune*(lex: var TsLexer): Rune =
+  Rune(lex.lookahead)
+
+proc `[]`*(lex: var TSLexer): Rune =
   Rune(lex.lookahead)
 
 proc advance*(lex: var TsLexer, skip: bool) =
@@ -53,6 +56,8 @@ proc markEnd*(lex: var TsLexer) =
 
 proc setTokenKind*(lex: var TsLexer, kind: enum) =
   lex.result_symbol = cast[TSSymbol](kind)
+
+
 
 proc ts_parser_parse(
   self: PtsParser, oldTree: PtsTree, input: PtsInput): PtsTree {.apiProc.}

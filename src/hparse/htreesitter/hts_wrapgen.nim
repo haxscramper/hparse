@@ -32,7 +32,9 @@ type
     named: bool
     children: Option[TreeChildren]
 
-  NodeSpec = seq[Tree]
+  NodeSpec = object
+    nodes: seq[Tree]
+    externals: seq[string]
 
 
 
@@ -77,7 +79,7 @@ func langErrorName(lang: string): string =
 func makeKindEnum(spec: NodeSpec, lang: string): PEnum =
   result = PEnum(name: lang.makeNodeKindName(), exported: true)
   var used: HashSet[string]
-  for elem in spec:
+  for elem in spec.nodes:
     let name = elem.ntermName(lang)
     if name notin used: # WARNING
       used.incl name
@@ -100,7 +102,7 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
   var impl = nnkCaseStmt.newPTree(nameGet)
 
   var used: HashSet[string]
-  for elem in spec:
+  for elem in spec.nodes:
     let name = elem.ttype
     if name notin used:
       used.incl name
@@ -215,6 +217,22 @@ proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
     import hparse/htreesitter/htreesitter, sequtils, strutils
 
   result.add makeKindEnum(spec, inputLang).toNNode(standalone = true)
+
+  block:
+    var exterEnum = PEnum(
+      name: inputLang.capitalizeAscii() & "ExternalTok",
+      exported: true)
+
+    for extern in spec.externals:
+      exterEnum.values.add makeEnumField[PNode](
+        inputLang & "Extern" & extern.capitalizeAscii(),
+        comment = extern
+      )
+
+
+
+    result.add exterEnum.toNNode(standalone = true)
+
   result.add makeDistinctType(
     newPType("TSNode"),
     newPType(makeNodeName(inputLang)))
@@ -294,15 +312,21 @@ proc compileGrammar(
       let file = scannerFile.get()
       cpFile file, RelFile("src/scanner.c")
 
-    var spec = "src/node-types.json".
-      parseFile().getElems().mapIt(it.toTree())
+    var spec = NodeSpec(
+      nodes: "src/node-types.json".parseFile(
+      ).getElems().mapIt(it.toTree())
+    )
 
     let grammar = "src/grammar.json".parseFile()
 
     for extra in grammar["extras"]:
       if "name" in extra:
         let name = extra["name"]
-        spec.add Tree(ttype: name.asStr(), named: true)
+        spec.nodes.add Tree(ttype: name.asStr(), named: true)
+
+    for extern in grammar["externals"]:
+      if "name" in extern:
+        spec.externals.add extern["name"].asStr()
 
 
     let inputLang: string = grammar["name"].asStr()
@@ -390,7 +414,7 @@ proc grammarFromFile(
   except ShellError:
     let ex = getCEx(ShellError)
     echo ex.outstr
-    echo ex.msg
+    # echo ex.msg
     for line in ex.errstr.split("\n"):
       if line.contains(["undefined reference"]):
         if line.contains("external"):

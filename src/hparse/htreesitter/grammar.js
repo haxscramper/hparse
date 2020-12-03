@@ -6,6 +6,6 @@ module.exports = grammar({
 
     rules: {
         // TODO: add the actual grammar rules
-        source_file: $ => $.nimExternal
+        source_file: $ => repeat($.nimExternal)
     }
 });

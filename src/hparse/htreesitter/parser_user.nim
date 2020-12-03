@@ -1,17 +1,18 @@
 import test_wrapper
-import std/[macros, unicode]
+import std/[macros, unicode, strutils]
 import hnimast
 # import hmisc/macros/matching
 import htreesitter
 
 
 macro tsInitScanner*(
-  langname: untyped, scannerType, kindType: typed): untyped =
+  langname: untyped, scannerType): untyped =
   result = newStmtList()
 
 
   let
     initCall = ident("init" & scannerType.repr)
+    kindType = ident(langname.strVal().capitalizeAscii() & "ExternalTok")
 
   result.add quote do:
     var scanner {.inject.} = `initCall`()
@@ -38,7 +39,7 @@ macro tsInitScanner*(
         discard
     )
   ).toNNode()
-  
+
   result.add newNProcDecl(
     name = "tree_sitter_" & langname.strVal() & "_external_scanner_scan",
     args = {
@@ -50,7 +51,8 @@ macro tsInitScanner*(
     pragma = newNPragma("exportc"),
     impl = (
       quote do:
-        scan(cast[ptr `scannerType`](payload)[], lexer[])
+        let res = scan(cast[ptr `scannerType`](payload)[], lexer[])
+        lexer[].setTokenKind(res)
     )
   ).toNNode()
 
@@ -90,29 +92,27 @@ macro tsInitScanner*(
       `result`
       scanner
 
-  echo result.repr
+  # echo result.repr
 
 
 type
   TestScanner = object
 
-  TestToks = enum
-    tk1
-
-proc scan(scan: var TestScanner, tslex: var TsLexer) =
-  echo "Called scan on ", $tslex.nextRune()
-  discard
+proc scan(scan: var TestScanner, tslex: var TsLexer): TestExternalTok =
+  echo "Called scan on ", tslex[]
+  tslex.advance(false)
+  tslex.markEnd()
 
 func initTestScanner(): TestScanner = discard
 
-var scanner = tsInitScanner(test, TestScanner, TestToks)
+var scanner = tsInitScanner(test, TestScanner)
 
 
 # {.experimental: "caseStmtMacros".}
 
 {.passl: "-lstdc++".}
 {.passl: "-ltree-sitter".}
-{.passl: "test_parser.o".}
+# {.passl: "test_parser.o".}
 
 var parser = newTestParser()
 
