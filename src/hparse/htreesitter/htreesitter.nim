@@ -57,6 +57,8 @@ proc markEnd*(lex: var TsLexer) =
 proc setTokenKind*(lex: var TsLexer, kind: enum) =
   lex.result_symbol = cast[TSSymbol](kind)
 
+proc finished*(lex: var TsLexer): bool =
+  lex.lookahead == 0
 
 
 proc ts_parser_parse(
@@ -226,3 +228,99 @@ proc ts_node_named_descendant_for_byte_range*(
 #     apiProc.}
 # proc ts_language_version*(a1: ptr TSLanguage): uint32 {.apiProc.}
 # {.pop.}
+
+
+import std/[macros, options, unicode, strutils]
+import hnimast
+export options
+
+macro tsInitScanner*(
+  langname: untyped, scannerType): untyped =
+  result = newStmtList()
+
+  let
+    initCall = ident("init" & scannerType.repr)
+    kindType = ident(langname.strVal().capitalizeAscii() & "ExternalTok")
+
+  result.add quote do:
+    var scanner {.inject.} = `initCall`()
+
+  result.add newNProcDecl(
+    name = "tree_sitter_" & langname.strVal() & "_external_scanner_create",
+    rtyp = some newNType("pointer"),
+    exported = false,
+    pragma = newNPragma("exportc"),
+    impl = (
+      quote do:
+        result = addr scanner
+    )
+  ).toNNode()
+
+  result.add newNProcDecl(
+    name = "tree_sitter_" & langname.strVal() & "_external_scanner_destroy",
+    args = { "inScanner" : newNtype(scannerType.repr) },
+    exported = false,
+    pragma = newNPragma("exportc"),
+    impl = (
+      quote do:
+        discard
+    )
+  ).toNNode()
+
+
+  result.add newNProcDecl(
+    name = "tree_sitter_" & langname.strVal() & "_external_scanner_scan",
+    args = {
+      "payload" : newNtype("pointer"),
+      "lexer" : newNType("ptr", @["TSLexer"]),
+      "valid_symbols" : newNType("ptr", @["bool"])
+    },
+    rtyp = some newNType("bool"),
+    exported = false,
+    pragma = newNPragma("exportc"),
+    impl = (
+      quote do:
+        let res = scan(cast[ptr `scannerType`](payload)[], lexer[])
+        if res.isSome():
+          lexer[].setTokenKind(res.get())
+          return true
+        else:
+          return false
+    )
+  ).toNNode()
+
+  result.add newNProcDecl(
+    name = "tree_sitter_" & langname.strVal() & "_external_scanner_serialize",
+    args = {
+      "payload" : newNtype("pointer"),
+      "buffer" : newNType("cstring"),
+    },
+    exported = false,
+    pragma = newNPragma("exportc"),
+    impl = (
+      quote do:
+        discard
+    )
+  ).toNNode()
+
+  result.add newNProcDecl(
+    name = "tree_sitter_" & langname.strVal() & "_external_scanner_deserialize",
+    args = {
+      "payload" : newNtype("pointer"),
+      "buffer" : newNType("cstring"),
+      "length" : newNType("cuint")
+    },
+    exported = false,
+    pragma = newNPragma("exportc"),
+    impl = (
+      quote do:
+        discard
+    )
+  ).toNNode()
+
+
+  result = quote do:
+    block:
+      `result`
+      scanner
+

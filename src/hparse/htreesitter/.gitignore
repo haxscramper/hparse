@@ -4,3 +4,4 @@
 !parser_user.nim
 !grammar.js
 !htreesitter.nim
+!nim.cfg
