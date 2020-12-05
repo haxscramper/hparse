@@ -3,7 +3,7 @@
 
 import otherTest_wrapper
 import std/[unicode]
-import htreesitter
+import hparse/htreesitter/htreesitter
 
 type
   TestScanner = object
