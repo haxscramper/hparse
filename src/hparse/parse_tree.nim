@@ -41,6 +41,10 @@ Parse tree object
       of ptkToken:
         tok*: Token[C, L, I] ## Value of parsed token
       of ptkNTerm, ptkList:
+        cat: C
+        lex: L
+        info: I
+
         # IDEA REVIEW maybe use `RuleId` to retain information about
         # original rules that has been used?
         nterm*: NTermSym ## Name of parsed nonterminal
@@ -59,9 +63,29 @@ func newTree*[C, L, I](subtree: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
   ## Create new parse tree object
   ParseTree[C, L, I](kind: ptkList, subnodes: subtree)
 
-proc newTree*[C, L, I](
+func newTree*[C, L, I](
   name: NTermSym, subnodes: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
   ParseTree[C, L, I](kind: ptkNTerm, nterm: name, subnodes: subnodes)
+
+func newParseTree*[C, L, I](
+  cat: C,
+  lex: L,
+  info: I,
+  subnodes: seq[ParseTree[C, L, I]]): ParseTree[C, L, I] =
+  result = ParseTree[C, L, I](
+    kind: ptkNterm,
+    cat: cat,
+    lex: lex,
+    subnodes: subnodes
+  )
+
+  when info isnot void:
+    result.info = info
+
+func newParseTree*[C, L, I](cat: C, lex: L, info: I): ParseTree[C, L, I] =
+  result = ParseTree[C, L, I](kind: ptkToken, tok: initToken(cat, lex, info))
+  # when info isnot void:
+  #   result.info = info
 
 func add*[C, L, I](tree: var ParseTree[C, L, I],
                    other: ParseTree[C, L, I]): void =

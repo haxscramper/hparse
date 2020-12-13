@@ -771,3 +771,9 @@ template assertToken*[C, L, I](
     raiseAssert(
       "Unexpected token _" & exprRepr(tok) & "_, expected _" &
         exprRepr(exp) & "_")
+
+
+func initToken*[C, L, I](cat: C, lex: L, info: I): Token[C, L, I] =
+  result = Token[C, L, I](kind: etokRegular, cat: cat, lex: lex)
+  when info isnot void:
+    result.info = info

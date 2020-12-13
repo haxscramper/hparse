@@ -25,15 +25,103 @@ nimble install hparse
 
 *** tree-sitter
 
-~hparse~ does not come with grammars pre-generated (except for CPP
-which is used as an example) and instead provides command-line tool
-that automates creation, compilation and linking of the grammar.
+~hts-wrapgen~ command-line utility comes instealled with ~hparse~, but it
+need additional dependencies in order to actually generate grammar.
 
-For detailed installation instructions for tree-sitter's [[https://tree-sitter.github.io/tree-sitter/creating-parsers#getting-started][getting
-started]] page. Arch linux installation is ~yay --noconfirm
-tree-sitter-cli~. You need to *globally* install ~regexp-util~ via
-~npm~ - it will be linked automatically to build directory during
-helper CLI script execution.
+For official installation instructions for tree-sitter's [[https://tree-sitter.github.io/tree-sitter/creating-parsers#getting-started][getting started]]
+page.
+
+**** ~tree-sitter-cli~ installation
+
+***** Arch linux
+
+~tree-sitter-cli~ is [[https://www.archlinux.org/packages/community/x86_64/tree-sitter/][available]], and can be installed using ~sudo pacman -S
+tree-sitter~
+
+***** Other distros
+
+I couldn't find any conclusive instructions about installing
+~tree-sitter-cli~ on other distributions, so this is a most general
+approach that 'should work'.
+
+****** Npm configuration
+
+If you are already familliar with ~npm~, have it installed etc. - you can
+skip this part. For people like me who have no idea on setting it up:
+
+#+begin_src sh
+  sudo apt-get -qq install -y npm
+  export NPM_PACKAGES=$HOME/.npm-packages
+  npm config set prefix $NPM_PACKAGES
+  export PATH="$PATH:$NPM_PACKAGES/bin"
+#+end_src
+
+****** Installing command-line tool
+
+#+begin_src sh
+  npm install tree-sitter-cli -g
+#+end_src
+
+****** Building tree-sitter library
+
+#+begin_src sh
+  cd /tmp
+  wget https://github.com/tree-sitter/tree-sitter/archive/0.17.3.tar.gz
+  tar -xvf 0.17.3.tar.gz && cd tree-sitter-0.17.3
+  sudo make install
+  export LD_LIBRARY_PATH=/usr/local/lib
+#+end_src
+
+NOTE: last line might not be necessary, but when testing installation in
+=debian= container I run into issues where =tree-sitter= library would not
+be detected without it.
+
+**** Using wrapper generator
+
+After all necessary dependencies have been installed, you can generate
+wrapper for arbitrary grammar file using ~hts-wrapgen grammar <arguments>~.
+Most commonly used switches are 
+
+- ~--grammarJs=<grammar file.js>~ to set input grammar file
+- ~--langPrefix=<language-name>~
+
+You can also use ~--parserUser=nimCode.nim~ to immediately compiler test
+nim file. It is not necessary to always use ~hts-wrapgen~ when compiling
+code that uses generated parser, but it has some built-in heuristics to
+provide better error messages for common errors (mostly related to
+linking).
+
+**** Using generated wrappers
+
+~hts-wrapgen~ generates wrapper file for your language, named
+~<language-name>_wrapper.nim~. Wrapper consists of several ~distict~
+wrapper types, enum listing all possile node kinds, and several helper
+procs. Generated API is made to resemble that of ~std/macros~ as close as
+possible - ~len~, indexation via ~[]~, ~kind()~ proc and so on.
+
+By default ~hts-wrapgen~ compiles generated parser source into static
+library which fill be then saved as ~<language-name>_parser.o~ alongside
+your grammar file.
+
+To build final application you need to link it with ~tree-sitter~ library.
+To do this from command-line you need to use ~--passl:-ltree-sitter~. Or
+use ~{.passl: "-ltree-sitter".}~ pragma in your code. 
+
+# NOTE: For some reason library installed in 
+
+# ***** NPM configuration
+
+
+# Install command-line helper with ~yay --noconfirm tree-sitter-cli~
+
+# You need to *globally* install ~regexp-util~ via ~npm~ - it will be linked
+# automatically to build directory during helper CLI script execution.
+
+
+# ~hparse~ does not come with grammars pre-generated (except for CPP
+# which is used as an example) and instead provides command-line tool
+# that automates creation, compilation and linking of the grammar.
+
 
 
 ** Links
@@ -632,6 +720,17 @@ ambiguous and nullable rules.
 
 ** Unsolved problems
 
+*** tree-sitter fails at runtime inside docker container
+
+WARNING: another issue I ran into - when actually running compiled & linked
+library in container, it just dies with, and I have no idea how to fix it.
+
+#+begin_src text
+__memmove_avx_unaligned_erms () at ../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:440
+440	../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S: No such file or directory. 
+#+end_src
+
+ 
 
 *** Fix tree after EBNF -> BNF rewriting
     :PROPERTIES:

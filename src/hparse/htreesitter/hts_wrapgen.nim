@@ -1,5 +1,5 @@
 import std/[macros, options, sequtils, strutils,
-            tables, logging, sets, sha1]
+            tables, sets, sha1, uri]
 import compiler/ast
 
 import hmisc/[hexceptions, hdebug_misc]
@@ -60,7 +60,7 @@ func toTree(js: JsonNode): Tree =
 
 
 func toNtermName(str: string): string =
-  if str.validIdentifier():
+  if str.validIdentifier() and str != "_":
     str.splitCamel().joinCamel()
   else:
     str.toNamedMulticharJoin()
@@ -76,8 +76,8 @@ func langErrorName(lang: string): string =
   lang & "SyntaxError"
 
 
-func makeKindEnum(spec: NodeSpec, lang: string): PEnum =
-  result = PEnum(name: lang.makeNodeKindName(), exported: true)
+func makeKindEnum(spec: NodeSpec, lang: string): PEnumDecl =
+  result = PEnumDecl(name: lang.makeNodeKindName(), exported: true)
   var used: HashSet[string]
   for elem in spec.nodes:
     let name = elem.ntermName(lang)
@@ -95,7 +95,8 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
   result = newPProcDecl(
     "kind",
     {"node" : newPType(lang.makeNodeName())},
-    some newPType(lang.makeNodeKindName())
+    some newPType(lang.makeNodeKindName()),
+    pragma = newPPragma("noSideEffect")
   )
 
   let nameGet = nnkDotExpr.newPTree("node".id, "tsNodeType".id)
@@ -121,7 +122,9 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
 
   impl.add nnkElse.newPTree(assrt)
 
-  result.impl = impl
+  result.impl = pquote do:
+    {.cast(noSideEffect).}:
+      `impl`
 
 func camelCase(str: varargs[string, `$`]): string =
   str.joinCamel()
@@ -178,12 +181,16 @@ func makeImplTsFor(lang: string): PNode =
 
     iterator items*(node: `nodeType`,
                    withUnnamed: bool = false): `nodeType` =
+      ## Iterate over subnodes. `withUnnamed` - also iterate over unnamed
+      ## nodes (usually things like punctuation, braces and so on).
       for i in 0 .. node.len(withUnnamed):
         yield node[i, withUnnamed]
 
-    proc slice*(node: `nodeType`): Slice[int] =
-      ts_node_start_byte(TsNode(node)).int ..<
-      ts_node_end_byte(TsNode(node)).int
+    func slice*(node: `nodeType`): Slice[int] =
+      {.cast(noSideEffect).}:
+        ## Get range of source code **bytes** for the node
+        ts_node_start_byte(TsNode(node)).int ..<
+        ts_node_end_byte(TsNode(node)).int
 
     proc treeRepr*(mainNode: `nodeType`,
                    instr: string,
@@ -218,8 +225,8 @@ proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
 
   result.add makeKindEnum(spec, inputLang).toNNode(standalone = true)
 
-  block:
-    var exterEnum = PEnum(
+  if spec.externals.len > 0:
+    var exterEnum = PEnumDecl(
       name: inputLang.capitalizeAscii() & "ExternalTok",
       exported: true)
 
@@ -228,8 +235,6 @@ proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
         inputLang & "Extern" & extern.capitalizeAscii(),
         comment = extern
       )
-
-
 
     result.add exterEnum.toNNode(standalone = true)
 
@@ -270,6 +275,7 @@ proc compileGrammar(
   grammarJs: AbsFile,
   langPrefix: string,
   scannerFile: Option[AbsFile] = none(AbsFile),
+  parserSourceOut: Option[AbsFile] = none(AbsFile),
   junkDir: AbsDir,
   forceBuild: bool = false): string =
 
@@ -283,8 +289,18 @@ proc compileGrammar(
   withDir junkDir:
     cpFile grammarJs, RelFile("grammar.js")
 
+    execShell(shCmd(npm, --silent, link, "regexp-util"))
+    execShell(shCmd(npm, --silent, link, "tree-sitter-c"))
+    info "Linked regexp-util BS for node.js"
+
     info "Generating tree-sitter files"
     execShell shCmd("tree-sitter", "generate")
+
+
+    # if true:
+    #   execShell shCmd("tree-sitter", "build-wasm")
+    #   execShell shCmd("tree-sitter", "web-ui")
+
 
     debug "Done"
 
@@ -323,18 +339,21 @@ proc compileGrammar(
     info "Wrote generated wrappers to", wrapperOut
 
     debug "Linking parser.c"
-    execShell makeGnuShellCmd("clang").withIt do:
+    execShell makeGnuShellCmd("gcc").withIt do:
       it.arg "src/parser.c"
       it - "c"
       it - ("o", "", "parser.o")
 
     cpFile RelFile("parser.o"), parserOut
+    if parserSourceOut.getSome(src):
+      cpFile RelFile("src/parser.c"), src
+
     debug "Copied parser file to", parserOut
 
     if scannerFile.isSome():
       let file = scannerFile.get()
       debug "Linking", file
-      execShell makeGnuShellCmd("clang").withIt do:
+      execShell makeGnuShellCmd("gcc").withIt do:
         it.arg $file
         it - "c"
         it - ("o", "", "scanner.o")
@@ -347,23 +366,26 @@ proc compileGrammar(
 
 
 proc grammarFromFile(
-  grammarJs: RelFile = RelFile("grammar.js"),
-  scannerFile: Option[RelFile] = none(RelFile),
-  parserUser: Option[RelFile] = none(RelFile),
-  cacheDir: AbsDir = getAppCacheDir(),
-  nimcacheDir: Option[FsDir] = none(FsDir),
-  forceBuild: bool = false,
-  langPrefix: string = "") =
+    grammarJs:   FsFile         = RelFile("grammar.js"),
+    scannerFile: Option[FsFile] = none(FsFile),
+    parserUser:  Option[FsFile] = none(FsFile),
+    parserOut:   Option[FsFile] = none(FsFile),
+    cacheDir:    AbsDir         = getAppCacheDir(),
+    nimcacheDir: Option[FsDir]  = none(FsDir),
+    forceBuild:  bool           = false,
+    langPrefix:  string         = ""
+  ) =
 
   if scannerFile.isNone():
     warn "No input scanner file"
 
   let lang = compileGrammar(
-    grammarJs = grammarJs.toAbsFile(true),
-    langPrefix = langPrefix,
+    grammarJs   = grammarJs.toAbsFile(true),
+    langPrefix  = langPrefix,
     scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
-    junkDir = cacheDir,
-    forceBuild = forceBuild
+    junkDir     = cacheDir,
+    forceBuild  = forceBuild,
+    parserSourceOut   = parserOut.mapItSome(it.toAbsFile())
   )
 
 
@@ -420,6 +442,26 @@ proc grammarFromFile(
         else:
           echo line
 
+import std/httpclient
+
+proc grammarFromUrl*(
+  grammarUrl: Url,
+  grammarFile: FsFile     = RelFile("grammar.js"),
+  scannerUrl: Option[Url] = none(Url),
+  scannerFile: FsFile     = RelFile("scanner.c"),
+  parserOut: FsFile       = RelFile("parser.c")) =
+
+  let client = newHttpClient()
+  client.downloadFile(grammarUrl.string, grammarFile.getStr())
+  if scannerUrl.getSome(scanner):
+    client.downloadFile(scanner.string, scannerFile.getStr())
+
+  grammarFromFile(
+    grammarJs   = grammarFile,
+    scannerFile = if scannerUrl.isNone(): none(FsFile) else: some(scannerFile),
+    parserOut   = some(parserOut)
+  )
+
 when isMainModule:
   startColorLogger()
   if paramCount() == 0:
@@ -429,5 +471,6 @@ when isMainModule:
     )
   else:
     dispatchMulti(
-      [grammarFromFile]
+      [grammarFromFile],
+      [grammarFromUrl]
     )

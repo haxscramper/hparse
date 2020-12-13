@@ -1,4 +1,3 @@
-{.passl: "-ltree-sitter".}
 {.passl: "otherTest_parser.o".}
 
 import otherTest_wrapper
