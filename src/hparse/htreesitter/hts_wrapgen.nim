@@ -145,6 +145,7 @@ func makeImplTsFor(lang: string): PNode =
     langLen: PNode = newPLit(lang.len)
     langImpl: PNode = newPIdent("tree_sitter_" & lang)
     newParserID: PNode = newPIdent("new" & lang.makeLangParserName())
+    parseStringID: PNode = newPIdent("parse" & lang.capitalizeAscii() & "String")
 
   result.add pquote do:
     proc `langImpl`(): PtsLanguage {.importc, cdecl.}
@@ -160,6 +161,10 @@ func makeImplTsFor(lang: string): PNode =
         ts_tree_root_node(
           ts_parser_parse_string(
             PtsParser(parser), nil, str.cstring, uint32(len(str)))))
+
+    proc `parseStringID`*(str: string): `nodeType` =
+      let parser = `newParserId`()
+      return parseString(parser, str)
 
   startHaxComp()
   result.add pquote do:

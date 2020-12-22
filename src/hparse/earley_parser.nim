@@ -124,14 +124,18 @@ func append[A](a: var seq[A], b: A): void =
 
   a.add b
 
+import hpprint
+
 func chartOfItems[C](gr: Grammar[C],
                      s: State): Chart =
   result = s.mapIt(newSeqWith(0, SItemId()))
   for idx, itemSet in s:
     for item in itemSet:
       let sym: Option[Symbol[C]] = gr.nextSymbol(item)
+
       if sym.isSome():
         discard # Item not fully completed
+
       else:
         result[item.startPos].add SItemId(
           ruleId: item.ruleId,
@@ -162,11 +166,93 @@ type
 
 func hash(pr: TryParams): Hash = !$(pr.start !& pr.altId !& hash(pr.name))
 
-proc parseTree[C](gr: Grammar[C],
+proc dfSearch(
+    edges: proc(depth: int, start: int): seq[SItemId],
+    child: proc(depth: int, edge: SItemId): int,
+    check: proc(depth: int, start: int): bool,
+    root: int
+  ): seq[(int, SItemId)] =
+
+  proc aux(depth: int, root: int): Option[seq[(int, SItemId)]] =
+    if check(depth, root):
+      return some newSeq[typeof(result.get()[0])]()
+
+    else:
+      for edge in edges(depth, root):
+        let auxRes = aux(depth + 1, child(depth, edge))
+        if auxRes.isSome():
+          return some @[(root, edge)] & auxRes.get()
+
+  return aux(0, root).get()
+
+
+proc topList[C](
+    grammar: Grammar[C],
+    input: Input[C],
+    chart: Chart,
+    start: int,
+    edge: SItemId
+  ): seq[(int, SItemId)] =
+
+  let
+    finish = edge.finish
+    rule = edge.ruleId
+    symbols = ruleBody(grammar, rule)
+    bottom = symbols.len
+
+  func check(depth, start: int): bool =
+    depth == bottom and start == finish
+
+  func child(depth: int, edge: SItemId): int =
+    edge.finish
+
+  func edges(depth: int, start: int): seq[SItemId] =
+    if depth >= symbols.len:
+      return @[]
+
+    else:
+      if symbols[depth].isTerm:
+        if symbols[depth].terminal.ok(input(start)):
+          return @[SItemId(finish: start + 1, ruleId: -1)]
+
+        else:
+          return @[]
+
+      else:
+        let name = symbols[depth].nterm
+        for item in chart[start]:
+          if ruleName(grammar, item.ruleId) == name:
+            result.add item
+
+  dfSearch(edges, child, check, start)
+
+
+
+
+proc parseTree[C](grammar: Grammar[C],
                   input: Input[C],
                   chart: Chart): seq[ParseTree[C]] =
 
-  discard
+  let
+    start = 0
+    finish = chart.len - 1
+    name = grammar.start
+
+  proc aux(start: int, edge: SItemId): ParseTree[C] =
+    if edge.ruleId == -1:
+      result = ParseTree[C](isToken: true, token: input(start).get())
+
+    else:
+      result = ParseTree[C](isToken: false, ruleId: edge.ruleId)
+
+      result.subnodes = collect(newSeq):
+        for (node, edge) in topList(grammar, input, chart, start, edge):
+          aux(node, edge)
+
+  for edge in chart[start]:
+    if edge.finish == finish and ruleName(grammar, edge.ruleId) == name:
+      return @[aux(start, edge)]
+
 
 
 
@@ -227,34 +313,39 @@ func complete[C](s: var State,
             inc it.nextPos
 
 
-func buildItems[C](gr: Grammar[C],
+proc buildItems[C](gr: Grammar[C],
                    input: int -> Option[C]): State =
   let nullable = nullableSymbols gr
-  var s: State
+
+  result.add @[]
 
   # Seed s with the start symbol
   for idx, rule in gr.rules:
     if rule.lhs == gr.start:
-      s.add @[EItem(ruleId: idx, startPos: 0, nextPos: 0)]
+      result[0].add EItem(ruleId: idx, startPos: 0, nextPos: 0)
 
-  var itemset = 0 # DOC
-  while itemset < s.len: # Loop over main array of state sets
+  var i = 0 # DOC
+  echo "- ", result.len
+  while i < result.len: # Loop over main array of state sets
     var j = 0 # DOC
-    while j < s[itemset].len: # Loop over elements in particular state set
-      let next: Option[Symbol[C]] = gr.nextSymbol(s[itemset][j])
+    echo " <- ", result[i].len
+    while j < result[i].len: # Loop over elements in particular state set
+      let next: Option[Symbol[C]] = gr.nextSymbol(result[i][j])
       if next.isNone():
-        discard complete(s, itemset, j, gr, input)
+        discard complete(result, i, j, gr, input)
+
       else:
         let sym: Symbol[C] = next.get()
         if sym.isTerm:
-          discard scan(s, itemset, j, sym.terminal.ok, gr, input)
+          discard scan(result, i, j, sym.terminal.ok, gr, input)
+
         else:
-          discard predict(s, itemset, j, nullable, sym.nterm, gr)
+          discard predict(result, i, j, nullable, sym.nterm, gr)
 
       inc j
-    inc itemset
+      echo "   -> ", result[i].len
 
-  return s
+    inc i
 
 #*************************************************************************#
 #****************************  Test grammar  *****************************#
@@ -275,9 +366,10 @@ func lispRepr[C](pt: ParseTree[C], gr: Grammar[C]): string =
 func treeRepr[C](pt: ParseTree[C], gr: Grammar[C], level: int = 0): string =
   let pref = "  ".repeat(level)
   if pt.isToken:
-   "[*]" & pref & $pt.token
+    &"[*]{pref}\e[32m'{pt.token}'\e[39m"
+
   else:
-    fmt("[{pt.subnodes.len}] {pref}{gr.ruleName(pt.ruleId)}") & (
+    fmt("[{pt.subnodes.len}] {pref}\e[33m{gr.ruleName(pt.ruleId)}\e[39m") & (
       block:
         if pt.subnodes.len > 0:
           "\n" & pt.subnodes.mapIt(treeRepr(it, gr, level + 1)).join("\n")
@@ -342,7 +434,7 @@ func alt(alts: string): Symbol[char] =
 
 func ch(ic: char): Symbol[char] =
   Symbol[char](isTerm: true, terminal: (
-    ok: proc(c: Option[char]): bool = (c.get() == ic),
+    ok: proc(c: Option[char]): bool = c.isSome() and (c.get() == ic),
     lex: &"'{ic}'"
   ))
 
@@ -360,7 +452,7 @@ func makeInput(s: string): Input[char] =
       none(char)
 
 
-if true:
+if false:
   let grammar1 = Grammar[char](
     start: "Sum",
     rules: @[
@@ -401,14 +493,14 @@ if true:
 
   let input1 = makeInput "ii;e;"
   let s1     = buildItems(grammar1, input1)
-  # printItems(grammar1, s1)
+  printItems(grammar1, s1)
   let c1     = chartOfItems(grammar1, s1)
   printChart(grammar1, c1)
   let pt1    = parseTree(grammar1, input1, c1)
   for tree in pt1:
     echo tree.treeRepr(grammar1)
 
-block:
+if false:
   let grammar1 = Grammar[char](
     start: "List",
     rules: @[
@@ -422,7 +514,7 @@ block:
   )
 
 
-  let input1 = makeInput "[a]"
+  let input1 = makeInput "[a,a,z]"
   let s1     = buildItems(grammar1, input1)
   # printItems(grammar1, s1)
   let c1     = chartOfItems(grammar1, s1)

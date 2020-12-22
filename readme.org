@@ -80,7 +80,7 @@ be detected without it.
 
 After all necessary dependencies have been installed, you can generate
 wrapper for arbitrary grammar file using ~hts-wrapgen grammar <arguments>~.
-Most commonly used switches are 
+Most commonly used switches are
 
 - ~--grammarJs=<grammar file.js>~ to set input grammar file
 - ~--langPrefix=<language-name>~
@@ -105,9 +105,9 @@ your grammar file.
 
 To build final application you need to link it with ~tree-sitter~ library.
 To do this from command-line you need to use ~--passl:-ltree-sitter~. Or
-use ~{.passl: "-ltree-sitter".}~ pragma in your code. 
+use ~{.passl: "-ltree-sitter".}~ pragma in your code.
 
-# NOTE: For some reason library installed in 
+# NOTE: For some reason library installed in
 
 # ***** NPM configuration
 
@@ -145,7 +145,6 @@ use ~{.passl: "-ltree-sitter".}~ pragma in your code.
   it is not mandatory to name it like this, it is perfectly fine to
   have ~cpp-grammar.js~ for example. Grammar file [[https://github.com/tree-sitter/tree-sitter-cpp/blob/master/grammar.js][example]], [[https://tree-sitter.github.io/tree-sitter/creating-parsers#writing-the-grammar][tutorial]] on
   writing grammars.
-- OPTIONAL ::
 
 ** setup guide & compilation process
 
@@ -692,32 +691,6 @@ be especially useful.
 If you have any question about implementation details, API etc. you
 can join my [[https://discord.gg/hjfYJCU][discord server]].
 
-*** Earley parser
-
-tl;dr
-
-- real the [[http://loup-vaillant.fr/tutorials/earley-parsing/parser][article]], specifically [[http://loup-vaillant.fr/tutorials/earley-parsing/parser][this]] page
-- get partial Nim implementation from [[file:src/hparse/earley_parser.nim]]
-- can try it out on playground [[https://play.nim-lang.org/#ix=2uBS][here]]
-- implement ~parseTree~ proc
-- I'm happy to answer any questions (to the best of my ability)
-- result: get EBNF parser generator with support for left-recursive & ambiguous grammars.
-
-
-When implementing ~Earley~ parser I mostly followed [[http://loup-vaillant.fr/tutorials/earley-parsing/][this]] tutorial - it
-has example implementation in ocaml and very nice explanation of most
-algorithm parts, except for tree construction itself. My very limited
-knowled of =ocaml= wasn't enough to fully rewrite it in =nim=.
-Standalone rewrite is in [[file:src/hparse/earley_parser.nim]] - it does
-not depend on any other library parts (can copy-paste on playground
-and it will run just fine). The only thing missing is parse forest
-construction.
-
-This parser algorithm is much more powerful compared to recursive
-descent and even shift-reduce parsers. It can handle left recursion,
-ambiguous and nullable rules.
-
-
 ** Unsolved problems
 
 *** tree-sitter fails at runtime inside docker container
@@ -727,10 +700,10 @@ library in container, it just dies with, and I have no idea how to fix it.
 
 #+begin_src text
 __memmove_avx_unaligned_erms () at ../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:440
-440	../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S: No such file or directory. 
+440	../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S: No such file or directory.
 #+end_src
 
- 
+
 
 *** Fix tree after EBNF -> BNF rewriting
     :PROPERTIES:
