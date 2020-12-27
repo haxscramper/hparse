@@ -141,12 +141,20 @@ use ~{.passl: "-ltree-sitter".}~ pragma in your code.
 
 ** prerequisites
 
-- MUST :: input grammar file, usually called ~grammar.js~. Note that
-  it is not mandatory to name it like this, it is perfectly fine to
-  have ~cpp-grammar.js~ for example. Grammar file [[https://github.com/tree-sitter/tree-sitter-cpp/blob/master/grammar.js][example]], [[https://tree-sitter.github.io/tree-sitter/creating-parsers#writing-the-grammar][tutorial]] on
-  writing grammars.
+- Input grammar file, usually called ~grammar.js~. Note that it is not
+  mandatory to name it like this, it is perfectly fine to have
+  ~cpp-grammar.js~ for example. Grammar file [[https://github.com/tree-sitter/tree-sitter-cpp/blob/master/grammar.js][example]], [[https://tree-sitter.github.io/tree-sitter/creating-parsers#writing-the-grammar][tutorial]] on writing
+  grammars.
 
 ** setup guide & compilation process
+
+To compile tree-sitter grammar and generate wrappers run
+
+#+begin_src bash
+hts-wrapgen grammarFromFile \
+  --grammar=your-grammar.js
+  --lang=language
+#+end_src
 
 ** example
 
