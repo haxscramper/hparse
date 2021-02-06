@@ -171,7 +171,7 @@ suite "Table-driven vs recursive descent":
       resultGraph.addSubgraph(tree)
 
     resultGraph.styleNode.fontname = "Consolas"
-    resultGraph.toPng("/tmp/combined.png")
+    # resultGraph.toPng("/tmp/combined.png")
 
     echo "Starting earley parser"
     let

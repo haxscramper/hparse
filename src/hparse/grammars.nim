@@ -18,13 +18,16 @@ type
     case kind*: PattKind
       of pkNterm:
         nterm*: NTermSym ## Nonterminal to parse
+
       of pkTerm:
         # NOTE might be replaced with something like 'ExpectedToken'
         # which also contains information about comparison strategy
         # (category, lexeme or both).
         tok*: ExpectedToken[C, L] ## Single token to match literally
+
       of pkAlternative, pkConcat:
-        patts*: seq[Patt[C, L]]
+        patts*: seq[Patt[C, L]] ## List of alternative patterns
+
       of pkOptional, pkZeroOrMore, pkOneOrMore:
         item*: seq[Patt[C, L]] ## Single instance that will be repeated
         ## [0..1], [0..n] or [1..n] times respectively

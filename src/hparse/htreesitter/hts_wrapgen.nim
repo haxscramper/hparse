@@ -65,6 +65,18 @@ func toNtermName(str: string): string =
   else:
     str.toNamedMulticharJoin()
 
+func getName(
+    names: CountTable[string],
+    name: string,
+    minCount: int = 0
+  ): string =
+
+  if names[name.normalize()] > minCount:
+    return name & $(names[name.normalize()] + 1 - minCount)
+
+  else:
+    return name
+
 func ntermName(elem: Tree, lang: string): string =
   result = lang & elem.ttype.toNtermName().capitalizeAscii()
   if not elem.named:
@@ -76,14 +88,26 @@ func langErrorName(lang: string): string =
   lang & "SyntaxError"
 
 
-func makeKindEnum(spec: NodeSpec, lang: string): PEnumDecl =
+proc makeKindEnum(
+    spec: NodeSpec,
+    lang: string,
+    names: var CountTable[string]
+  ): PEnumDecl =
+
   result = PEnumDecl(name: lang.makeNodeKindName(), exported: true)
-  var used: HashSet[string]
   for elem in spec.nodes:
     let name = elem.ntermName(lang)
-    if name notin used: # WARNING
-      used.incl name
-      result.values.add makeEnumField[PNode](name, comment = elem.ttype)
+    let newName = names.getName(name)
+    if name.normalize() in names:
+      warn "Name clash for", name
+      debug "Normalized form:", name.normalize(),
+       "has count of", names[name.normalize()]
+
+    result.values.add makeEnumField[PNode](
+      newName, comment = elem.ttype)
+
+    # info name.normalize()
+    names.inc name.normalize()
 
   result.values.add makeEnumField[PNode](
     lang.langErrorName(),
@@ -91,7 +115,12 @@ func makeKindEnum(spec: NodeSpec, lang: string): PEnumDecl =
   )
 
 
-func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
+func makeGetKind(
+    spec: NodeSpec,
+    lang: string,
+    names: CountTable[string]
+  ): ProcDecl[PNode] =
+
   result = newPProcDecl(
     "kind",
     {"node" : newPType(lang.makeNodeName())},
@@ -109,7 +138,8 @@ func makeGetKind(spec: NodeSpec, lang: string): ProcDecl[PNode] =
       used.incl name
       impl.add nnkOfBranch.newPTree(
         newPLit(name),
-        newPIdent(elem.ntermName(lang))
+        newPIdent(names.getName(
+        elem.ntermName(lang), 1))
       )
 
   impl.add nnkOfBranch.newPTree(
@@ -222,26 +252,48 @@ func makeDistinctType*(baseType, aliasType: NType[PNode]): PNode =
     type `aliasType`* = distinct `baseType`
 
 
-proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
+proc createProcDefinitions(
+    spec: NodeSpec,
+    inputLang: string,
+    names: var CountTable[string]
+  ): PNode =
+
   result = nnkStmtList.newPTree()
 
   result.add pquote do:
     import hparse/htreesitter/htreesitter, sequtils, strutils
 
-  result.add makeKindEnum(spec, inputLang).toNNode(standalone = true)
+  result.add makeKindEnum(spec, inputLang, names).toNNode(standalone = true)
 
   if spec.externals.len > 0:
-    var exterEnum = PEnumDecl(
+    var externEnum = PEnumDecl(
       name: inputLang.capitalizeAscii() & "ExternalTok",
       exported: true)
 
+    var externSet: CountTable[string]
     for extern in spec.externals:
-      exterEnum.values.add makeEnumField[PNode](
-        inputLang & "Extern" & extern.capitalizeAscii(),
-        comment = extern
-      )
+      if extern.normalize() notin externSet:
+        externEnum.values.add makeEnumField[PNode](
+          inputLang & "Extern" & extern.capitalizeAscii(),
+          comment = extern
+        )
 
-    result.add exterEnum.toNNode(standalone = true)
+
+      else:
+        let name = inputLang & "Extern" & extern.capitalizeAscii() &
+          "_" & $(externSet[extern.normalize()] + 1)
+
+        warn "External enum name clash"
+        debug extern, "will be wrapped as", name
+
+        externEnum.values.add makeEnumField[PNode](
+          name,
+          comment = extern
+        )
+
+      externSet.inc extern.normalize()
+
+    result.add externEnum.toNNode(standalone = true)
 
   result.add makeDistinctType(
     newPType("TSNode"),
@@ -257,7 +309,7 @@ proc createProcDefinitions(spec: NodeSpec, inputLang: string): PNode =
   result.add pquote do:
     proc tsNodeType*(node: `langId`): string
 
-  result.add makeGetKind(spec, inputLang).toNNode()
+  result.add makeGetKind(spec, inputLang, names).toNNode()
   result.add makeImplTsFor(inputLang)
 
 
@@ -277,25 +329,42 @@ proc noChangesForFile*(file: AnyFile): bool =
     false
 
 proc compileGrammar(
-  grammarJs: AbsFile,
-  langPrefix: string,
-  scannerFile: Option[AbsFile] = none(AbsFile),
-  parserSourceOut: Option[AbsFile] = none(AbsFile),
-  junkDir: AbsDir,
-  forceBuild: bool = false): string =
+    grammarJs: AbsFile,
+    langPrefix: string,
+    scannerFile: Option[AbsFile] = none(AbsFile),
+    parserSourceOut: Option[AbsFile] = none(AbsFile),
+    junkDir: AbsDir,
+    forceBuild: bool = false,
+    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[]
+  ): string =
 
   let junkDir = junkDir / langPrefix
+
+  info "Lang prefix", langPrefix
+  debug junkDir
 
   info "Using cache dir", junkDir
 
   let startDir = cwd()
 
+  rmDir junkDir
   mkDir junkDir
   withDir junkDir:
+    info "Started temporary directory"
+    debug cwd()
     cpFile grammarJs, RelFile("grammar.js")
+    if extraFiles.len > 0:
+      logIndented:
+        info "Copying extra files"
+        for (src, target) in extraFiles:
+          mkDir target.dir
+          cpFile src, target
+          debug src, "->\n", target
 
     execShell(shCmd(npm, --silent, link, "regexp-util"))
     execShell(shCmd(npm, --silent, link, "tree-sitter-c"))
+    execShell(shCmd(npm, --silent, link, "readdir-enhanced"))
+    execShell(shCmd(npm, --silent, link, "nan"))
     info "Linked regexp-util BS for node.js"
 
     info "Generating tree-sitter files"
@@ -340,7 +409,8 @@ proc compileGrammar(
                    else:
                      none(AbsFile)
 
-    wrapperOut.writeFile($createProcDefinitions(spec, lang))
+    var names: CountTable[string]
+    wrapperOut.writeFile($createProcDefinitions(spec, lang, names))
     info "Wrote generated wrappers to", wrapperOut
 
     debug "Linking parser.c"
@@ -366,11 +436,27 @@ proc compileGrammar(
       cpFile RelFile("scanner.o"), scannerOut.get()
       debug "Compied compiled scanner to", scannerOut.get()
 
+
+    if extraFiles.len > 0:
+      logIndented:
+        info "Copying extra files to target directory"
+        for (src, target) in extraFiles:
+          if target.ext != "js":
+            cpFile target, parserOut.dir / target
+            debug target, "->\n", parserOut.dir / target
+
     info "tree-sitter object files generation ok"
     return lang
 
+proc argParse(
+  dst: var tuple[src: AbsFile, target: RelFile],
+  dfl: tuple[src: AbsFile, target: RelFile],
+  a: var ArgcvtParams): bool =
 
-proc grammarFromFile(
+  return false
+
+
+proc grammarFromFile*(
     grammarJs:   FsFile         = RelFile("grammar.js"),
     scannerFile: Option[FsFile] = none(FsFile),
     parserUser:  Option[FsFile] = none(FsFile),
@@ -378,11 +464,17 @@ proc grammarFromFile(
     cacheDir:    AbsDir         = getAppCacheDir(),
     nimcacheDir: Option[FsDir]  = none(FsDir),
     forceBuild:  bool           = false,
-    langPrefix:  string         = ""
+    langPrefix:  string         = "",
+    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[]
   ) =
 
+  info "Working directory is", cwd()
   if scannerFile.isNone():
     warn "No input scanner file"
+
+  else:
+    info "Scanner file is", scannerFile.get()
+    info "Absolute scanner file position", scannerFile.get().toAbsFile()
 
   let lang = compileGrammar(
     grammarJs   = grammarJs.toAbsFile(true),
@@ -390,7 +482,8 @@ proc grammarFromFile(
     scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
     junkDir     = cacheDir,
     forceBuild  = forceBuild,
-    parserSourceOut   = parserOut.mapItSome(it.toAbsFile())
+    parserSourceOut   = parserOut.mapItSome(it.toAbsFile()),
+    extraFiles = extraFiles
   )
 
 
@@ -432,12 +525,18 @@ proc grammarFromFile(
           if line.contains("external"):
             once: err "Missing linking with external scanners"
             info line.split(" ")[^1][1..^2]
+
           elif line.contains("ts_"):
             once: err "Missing linking with tree-sitter library"
             info line
+
           elif line.contains("std::"):
             once: err "Missing linking with C++ stdlib"
             info line
+
+          elif line.contains("tree_sitter_"):
+            once: err "Missing linking with compiled parser"
+
           else:
             once: err "Missing linking with other library"
             info line
@@ -450,11 +549,13 @@ proc grammarFromFile(
 import std/httpclient
 
 proc grammarFromUrl*(
-  grammarUrl: Url,
-  grammarFile: FsFile     = RelFile("grammar.js"),
-  scannerUrl: Option[Url] = none(Url),
-  scannerFile: FsFile     = RelFile("scanner.c"),
-  parserOut: FsFile       = RelFile("parser.c")) =
+    grammarUrl: Url,
+    grammarFile: FsFile     = RelFile("grammar.js"),
+    scannerUrl: Option[Url] = none(Url),
+    scannerFile: FsFile     = RelFile("scanner.c"),
+    parserOut: FsFile       = RelFile("parser.c"),
+    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[]
+  ) =
 
   let client = newHttpClient()
   client.downloadFile(grammarUrl.string, grammarFile.getStr())
@@ -464,7 +565,8 @@ proc grammarFromUrl*(
   grammarFromFile(
     grammarJs   = grammarFile,
     scannerFile = if scannerUrl.isNone(): none(FsFile) else: some(scannerFile),
-    parserOut   = some(parserOut)
+    parserOut   = some(parserOut),
+    extraFiles = extraFiles
   )
 
 when isMainModule:

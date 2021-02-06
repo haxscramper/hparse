@@ -1,5 +1,6 @@
 # {.push header: ""}
 import std/[unicode]
+export unicode
 
 {.pragma: apiStruct, importc, incompleteStruct,
   header: "<tree_sitter/api.h>".}
@@ -48,8 +49,17 @@ proc currRune*(lex: var TsLexer): Rune =
 proc `[]`*(lex: var TSLexer): Rune =
   Rune(lex.lookahead)
 
-proc advance*(lex: var TsLexer, skip: bool) =
-  lex.advance(addr lex, skip)
+proc `[]`*(lex: var TSLexer, ch: char): bool =
+  lex.lookahead.int16 == ch.int16
+
+# proc `[]`*(lex: TSLexer): Rune = Rune(lex.lookahead)
+
+
+proc advance*(lex: var TsLexer) =
+  lex.advance(addr lex, false)
+
+proc skip*(lex: var TSLexer) =
+  lex.advance(addr lex, true)
 
 proc markEnd*(lex: var TsLexer) =
   lex.mark_end(addr lex)
@@ -59,6 +69,12 @@ proc setTokenKind*(lex: var TsLexer, kind: enum) =
 
 proc finished*(lex: var TsLexer): bool =
   lex.lookahead == 0
+
+proc column*(lex: var TSLexer): int =
+  lex.get_column(addr lex).int
+
+proc `==`*(rune: Rune, ch: char): bool =
+  rune.int16 == ch.int16
 
 
 proc ts_parser_parse(
@@ -235,15 +251,24 @@ import hnimast
 export options
 
 macro tsInitScanner*(
-  langname: untyped, scannerType): untyped =
+  langname: untyped, scannerType: typed = void): untyped =
   result = newStmtList()
+
+  var scannerType = scannerType
+
+  if scannerType.repr == "void":
+    scannerType = ident("int8")
 
   let
     initCall = ident("init" & scannerType.repr)
     kindType = ident(langname.strVal().capitalizeAscii() & "ExternalTok")
 
   result.add quote do:
-    var scanner {.inject.} = `initCall`()
+    when `scannerType` is int8:
+      var scanner {.inject.}: int8
+
+    else:
+      var scanner {.inject.} = `initCall`()
 
   result.add newNProcDecl(
     name = "tree_sitter_" & langname.strVal() & "_external_scanner_create",
@@ -280,7 +305,16 @@ macro tsInitScanner*(
     pragma = newNPragma("exportc"),
     impl = (
       quote do:
-        let res = scan(cast[ptr `scannerType`](payload)[], lexer[])
+        let res = scan(
+          cast[ptr `scannerType`](payload)[],
+          lexer[],
+          cast[ptr UncheckedArray[bool]](valid_symbols)
+        )
+
+        when res isnot Option:
+          static:
+            error "`scan` must return `Option[<external token kind>]`"
+
         if res.isSome():
           lexer[].setTokenKind(res.get())
           return true
@@ -323,4 +357,3 @@ macro tsInitScanner*(
     block:
       `result`
       scanner
-
