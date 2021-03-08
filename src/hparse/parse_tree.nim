@@ -224,10 +224,12 @@ func highlight*[C, L, I](cb: TokenStyleCb[C, L, I], tok: Token[C, L, I]): TokenS
     result = cb.cb(tok)
 
 func toDotGraphPretty*[C, L, I](
-  tree: ParseTree[C, L, I],
-  kindPref: string,
-  bottomTokens: bool,
-  colorCb: TokenStyleCb): DotGraph =
+    tree: ParseTree[C, L, I],
+    kindPref: string,
+    bottomTokens: bool,
+    colorCb: TokenStyleCb
+  ): DotGraph =
+
   result.styleNode = DotNode(shape: nsaRect)
   var tokNodes: seq[DotNode]
 
@@ -243,7 +245,7 @@ func toDotGraphPretty*[C, L, I](
 
       let tokNode = makeDotNode(
         nextaddr,
-        ($it.tok).quote(),
+        $it.tok,
         nsaCircle,
         color = colLightGrey,
         style = nstFilled
@@ -320,12 +322,13 @@ func toDotGraphPrecise*[C, L, I](
       ))
 
 func toDotGraph*[C, L, I](
-  tree: ParseTree[C, L, I],
-  kindPref: string = "",
-  preciseRepr: bool = false,
-  bottomTokens: bool = false,
-  colorCb: TokenStyleCb[C, L, I] = TokenStyleCb[C, L, I](),
-  idshift: int = 0): DotGraph =
+    tree: ParseTree[C, L, I],
+    kindPref: string = "",
+    preciseRepr: bool = false,
+    bottomTokens: bool = false,
+    colorCb: TokenStyleCb[C, L, I] = TokenStyleCb[C, L, I](),
+    idshift: int = 0
+  ): DotGraph =
   ##[
 
 ## Parameters

@@ -4,7 +4,7 @@ import compiler/ast
 
 import hmisc/[hexceptions, hdebug_misc]
 import hmisc/other/[hjson, hshell, oswrap, colorlogger, hcligen]
-import hmisc/algo/[clformat, halgorithm, hstring_algo]
+import hmisc/algo/[clformat, halgorithm, hstring_algo, hseq_distance]
 import hpprint, hnimast
 import htreesitter
 
@@ -65,18 +65,6 @@ func toNtermName(str: string): string =
   else:
     str.toNamedMulticharJoin()
 
-func getName(
-    names: CountTable[string],
-    name: string,
-    minCount: int = 0
-  ): string =
-
-  if names[name.normalize()] > minCount:
-    return name & $(names[name.normalize()] + 1 - minCount)
-
-  else:
-    return name
-
 func ntermName(elem: Tree, lang: string): string =
   result = lang & elem.ttype.toNtermName().capitalizeAscii()
   if not elem.named:
@@ -91,23 +79,20 @@ func langErrorName(lang: string): string =
 proc makeKindEnum(
     spec: NodeSpec,
     lang: string,
-    names: var CountTable[string]
+    names: var StringNameCache
   ): PEnumDecl =
 
   result = PEnumDecl(name: lang.makeNodeKindName(), exported: true)
   for elem in spec.nodes:
     let name = elem.ntermName(lang)
-    let newName = names.getName(name)
-    if name.normalize() in names:
-      warn "Name clash for", name
-      debug "Normalized form:", name.normalize(),
-       "has count of", names[name.normalize()]
+    if not names.hasExactName(name):
+      let newName = names.getName(name)
+      # debug "name", name, "used first time -> ", newName
+      result.values.add makeEnumField[PNode](
+        newName, comment = elem.ttype)
 
-    result.values.add makeEnumField[PNode](
-      newName, comment = elem.ttype)
-
-    # info name.normalize()
-    names.inc name.normalize()
+    # else:
+    #   debug "Name", name, "already used."
 
   result.values.add makeEnumField[PNode](
     lang.langErrorName(),
@@ -118,7 +103,7 @@ proc makeKindEnum(
 func makeGetKind(
     spec: NodeSpec,
     lang: string,
-    names: CountTable[string]
+    names: var StringNameCache
   ): ProcDecl[PNode] =
 
   result = newPProcDecl(
@@ -138,8 +123,7 @@ func makeGetKind(
       used.incl name
       impl.add nnkOfBranch.newPTree(
         newPLit(name),
-        newPIdent(names.getName(
-        elem.ntermName(lang), 1))
+        newPIdent(names.getName(elem.ntermName(lang)))
       )
 
   impl.add nnkOfBranch.newPTree(
@@ -218,7 +202,7 @@ func makeImplTsFor(lang: string): PNode =
                    withUnnamed: bool = false): `nodeType` =
       ## Iterate over subnodes. `withUnnamed` - also iterate over unnamed
       ## nodes (usually things like punctuation, braces and so on).
-      for i in 0 .. node.len(withUnnamed):
+      for i in 0 ..< node.len(withUnnamed):
         yield node[i, withUnnamed]
 
     func slice*(node: `nodeType`): Slice[int] =
@@ -226,6 +210,64 @@ func makeImplTsFor(lang: string): PNode =
         ## Get range of source code **bytes** for the node
         ts_node_start_byte(TsNode(node)).int ..<
         ts_node_end_byte(TsNode(node)).int
+
+    # func parent*(node: `nodeType`): `nodeType` =
+    #   `nodeType`(ts_node_parent(TsNode(node)))
+
+    func nodeString*(node: `nodeType`): string =
+      $ts_node_string(TSNode(node))
+
+    func isNull*(node: `nodeType`): bool =
+      ts_node_is_null(TSNode(node))
+
+    func isNamed*(node: `nodeType`): bool =
+      ts_node_is_named(TSNode(node))
+
+    func isMissing*(node: `nodeType`): bool =
+      ts_node_is_missing(TSNode(node))
+
+    func isExtra*(node: `nodeType`): bool =
+      ts_node_is_extra(TSNode(node))
+
+    func hasChanges*(node: `nodeType`): bool =
+      ts_node_has_changes(TSNode(node))
+
+    func hasError*(node: `nodeType`): bool =
+      ts_node_has_error(TSNode(node))
+
+    func parent*(node: `nodeType`): `nodeType` =
+      `nodeType`(ts_node_parent(TSNode(node)))
+
+    func child*(node: `nodeType`; a2: int): `nodeType` =
+      `nodeType`(ts_node_child(TSNode(node), a2.uint32))
+
+    func childCount*(node: `nodeType`): int =
+      ts_node_child_count(TSNode(node)).int
+
+    func namedChild*(node: `nodeType`; a2: int): `nodeType` =
+      `nodeType`(ts_node_named_child(TSNode(node), a2.uint32))
+
+    func namedChildCount*(node: `nodeType`): int =
+      ts_node_named_child_count(TSNode(node)).int
+
+    func startPoint*(node: `nodeType`): TSPoint =
+      ts_node_start_point(TSNode(node))
+
+    func endPoint*(node: `nodeType`): TSPoint =
+      ts_node_end_point(TSNode(node))
+
+    func startLine*(node: `nodeType`): int = node.startPoint().row.int
+    func endLine*(node: `nodeType`): int = node.endPoint().row.int
+    func startColumn*(node: `nodeType`): int = node.startPoint().column.int
+    func endColumn*(node: `nodeType`): int = node.endPoint().column.int
+
+    func childByFieldName*(
+      self: `nodeType`; fieldName: string; fieldNameLength: int
+    ): TSNode =
+      ts_node_child_by_field_name(
+        TSNode(self), fieldName.cstring, fieldNameLength.uint32
+      )
+
 
     proc treeRepr*(mainNode: `nodeType`,
                    instr: string,
@@ -255,7 +297,7 @@ func makeDistinctType*(baseType, aliasType: NType[PNode]): PNode =
 proc createProcDefinitions(
     spec: NodeSpec,
     inputLang: string,
-    names: var CountTable[string]
+    names: var StringNameCache
   ): PNode =
 
   result = nnkStmtList.newPTree()
@@ -361,13 +403,19 @@ proc compileGrammar(
           cpFile src, target
           debug src, "->\n", target
 
-    execShell(shCmd(npm, --silent, link, "regexp-util"))
-    execShell(shCmd(npm, --silent, link, "tree-sitter-c"))
-    execShell(shCmd(npm, --silent, link, "readdir-enhanced"))
-    execShell(shCmd(npm, --silent, link, "nan"))
+    execShell(shCmd(
+      npm, --silent, link,
+      "regexp-util", "tree-sitter-c", "readdir-enhanced", "nan"
+    ))
+
     info "Linked regexp-util BS for node.js"
 
     info "Generating tree-sitter files"
+
+    info cwd()
+    for file in walkDir(cwd(), yieldFilter = {}):
+      debug file
+
     execShell shCmd("tree-sitter", "generate")
 
 
@@ -409,7 +457,7 @@ proc compileGrammar(
                    else:
                      none(AbsFile)
 
-    var names: CountTable[string]
+    var names: StringNameCache
     wrapperOut.writeFile($createProcDefinitions(spec, lang, names))
     info "Wrote generated wrappers to", wrapperOut
 

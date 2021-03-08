@@ -111,11 +111,11 @@ suite "Table-driven vs recursive descent":
           #[ IMPLEMENT correct token coloring ]#
           toHtmlText(
             ("  " & $rhs.cat & "  ").tokKindStr("tk"),
-            color = color.highlight(rhs).color).toHtmlCell(). withIt do:
+            color = color.highlight(rhs).color).toHtmlCell().withIt do:
               it["align"] = "center"
               it.dotPort = idx + 1
           ,
-          toHtmlText(escapeHTML($rhs.lex), props = {htpBold})
+          toHtmlText(escapeHtmlGraphviz($rhs.lex), props = {htpBold})
         ])
       ).toHtmlTableHoriz().withIt do:
         it.border = 1
@@ -171,7 +171,7 @@ suite "Table-driven vs recursive descent":
       resultGraph.addSubgraph(tree)
 
     resultGraph.styleNode.fontname = "Consolas"
-    # resultGraph.toPng("/tmp/combined.png")
+    resultGraph.toPng("/tmp/combined.png", tmpfile = "/tmp/combined-dot.dot")
 
     echo "Starting earley parser"
     let

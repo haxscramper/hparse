@@ -13,7 +13,7 @@ namedBin      = {
 
 requires "nim >= 1.2.4"
 requires "regex"
-requires "hmisc >= 0.6.0", "hasts", "hpprint"
+requires "hmisc >= 0.9.16", "hasts", "hpprint"
 
 task docgen, "Generate documentation":
   exec("hmisc-putils docgen")
