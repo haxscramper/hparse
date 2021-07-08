@@ -1,12 +1,18 @@
 import grammars, lexer
 import hmisc/[helpers]
 import hmisc/algo/hseq_mapping
-import hdrawing, hdrawing/term_buf
+import hmisc/extra/hdrawing/[term_buf, hdrawing]
 import hmisc/types/[seq2d]
-import sugar, sequtils, hashes, tables, strutils, strformat, deques, sets
+import std/[sugar, sequtils, hashes, tables, strutils, strformat, deques, sets]
 
-import bnf_grammars, grammars, parse_helpers, parse_tree, token,
-       parse_primitives, bnf_algo
+import
+  ./bnf_grammars,
+  ./grammars,
+  ./parse_helpers,
+  ./parse_tree,
+  ./token,
+  ./parse_primitives,
+  ./bnf_algo
 
 #*************************************************************************#
 #******************************  LL1Table  *******************************#

@@ -11,7 +11,7 @@ import grammar_dsl,
   llstar_gen,
   ll1_table
 
-import hdrawing/term_buf
+import hmisc/extra/hdrawing/term_buf
 
 export grammar_dsl,
   parse_tree,

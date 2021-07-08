@@ -2,8 +2,8 @@ import strutils, strformat, sugar, sets, options
 import sequtils
 import hmisc/helpers
 import hmisc/types/seq2d
-import hdrawing except toSeq2D
-import hdrawing/term_buf
+import hmisc/extra/hdrawing/hdrawing except toSeq2D
+import hmisc/extra/hdrawing/term_buf
 import hasts/graphviz_ast
 
 import parse_tree, token, lexer, bnf_grammars, grammars, bnf_algo,

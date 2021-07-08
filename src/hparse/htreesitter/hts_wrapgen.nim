@@ -1,12 +1,17 @@
-import std/[macros, options, sequtils, strutils,
-            tables, sets, sha1, uri]
+import std/[
+  macros, options, sequtils, strutils,
+  tables, sets, sha1, uri
+]
+
 import compiler/ast
 
-import hmisc/[hexceptions, hdebug_misc]
-import hmisc/other/[hjson, hshell, oswrap, colorlogger, hcligen]
-import hmisc/algo/[clformat, halgorithm, hstring_algo, hseq_distance]
-import hpprint, hnimast
-import htreesitter
+import
+  hmisc/[hexceptions, hdebug_misc],
+  hmisc/other/[hjson, hshell, oswrap, colorlogger, hcligen],
+  hmisc/algo/[clformat, halgorithm, hstring_algo, hseq_distance, namegen],
+  hmisc/wrappers/treesitter,
+  hpprint,
+  hnimast
 
 
 template mapItSome*[T](opt: Option[T], expr: untyped): untyped =
@@ -205,11 +210,21 @@ func makeImplTsFor(lang: string): PNode =
       for i in 0 ..< node.len(withUnnamed):
         yield node[i, withUnnamed]
 
+    iterator pairs*(
+      node: `nodeType`, withUnnamed: bool = false): (int, `nodeType`) =
+      ## Iterate over subnodes. `withUnnamed` - also iterate over unnamed
+      ## nodes.
+      for i in 0 ..< node.len(withUnnamed):
+        yield (i, node[i, withUnnamed])
+
     func slice*(node: `nodeType`): Slice[int] =
       {.cast(noSideEffect).}:
         ## Get range of source code **bytes** for the node
         ts_node_start_byte(TsNode(node)).int ..<
         ts_node_end_byte(TsNode(node)).int
+
+    func `[]`*(s: string, node: `nodeType`): string =
+      s[node.slice()]
 
     # func parent*(node: `nodeType`): `nodeType` =
     #   `nodeType`(ts_node_parent(TsNode(node)))
@@ -269,22 +284,6 @@ func makeImplTsFor(lang: string): PNode =
       )
 
 
-    proc treeRepr*(mainNode: `nodeType`,
-                   instr: string,
-                   withUnnamed: bool = false): string =
-      proc aux(node: `nodeType`, level: int): seq[string] =
-        if not(node.isNil()):
-          result = @["  ".repeat(level) & ($node.kind())[`langLen`..^1]]
-          if node.len(withUnnamed) == 0:
-            result[0] &= " " & instr[node.slice()]
-
-          for subn in items(node, withUnnamed):
-            result.add subn.aux(level + 1)
-
-      return aux(mainNode, 0).join("\n")
-
-
-
 func makeDistinctType*(baseType, aliasType: NType[PNode]): PNode =
   let
     aliasType = aliasType.toNNode()
@@ -303,7 +302,8 @@ proc createProcDefinitions(
   result = nnkStmtList.newPTree()
 
   result.add pquote do:
-    import hparse/htreesitter/htreesitter, sequtils, strutils
+    import hmisc/wrappers/treesitter
+    import strutils
 
   result.add makeKindEnum(spec, inputLang, names).toNNode(standalone = true)
 
@@ -539,7 +539,7 @@ proc grammarFromFile*(
     info "Test parser user file is some. Compiling ..."
     let user = parserUser.get()
     try:
-      let (stdout, stderr, code) = runShell makeNimShellCmd("nim").withIt do:
+      let res = runShell makeNimShellCmd("nim").withIt do:
         it.cmd "c"
         it - "r"
         if nimcacheDir.isSome():
@@ -562,8 +562,9 @@ proc grammarFromFile*(
 
         it.arg user
 
-      echo stdout
-      echo stderr
+      echo res.stdout
+      echo res.stderr
+
     except ShellError:
       let ex = getCEx(ShellError)
       echo ex.outstr

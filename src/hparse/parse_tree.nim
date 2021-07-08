@@ -241,7 +241,7 @@ func toDotGraphPretty*[C, L, I](
       when hasPosInfo(it.tok):
         nextaddr = toDotNodeId(it.tok.getPosInfo() + 1)
 
-      result.addEdge(makeDotEdge(itaddr, nextaddr))
+      result.add makeDotEdge(itaddr, nextaddr)
 
       let tokNode = makeDotNode(
         nextaddr,
@@ -253,10 +253,11 @@ func toDotGraphPretty*[C, L, I](
 
       if bottomTokens:
         tokNodes.add tokNode
-      else:
-        result.addNode tokNode
 
-    result.addNode(makeDotNode(
+      else:
+        result.add tokNode
+
+    result.add makeDotNode(
       itaddr,
       label = case it.kind:
         of ptkNTerm: it.nterm
@@ -279,20 +280,20 @@ func toDotGraphPretty*[C, L, I](
       style = case it.kind:
         of ptkNTerm: nstFilled
         else: nstDefault
-    ))
+    )
 
     for tr in subt:
-      result.addEdge(makeDotEdge(
+      result.add makeDotEdge(
         itaddr,
         toDotNodeId(addr tr[])
-      ))
+      )
 
   if bottomTokens:
-    result.addSubgraph(DotGraph(
+    result.add DotGraph(
       nodes: tokNodes,
       isWrapper: true,
       noderank: gnrSame
-    ))
+    )
 
 func toDotGraphPrecise*[C, L, I](
   tree: ParseTree[C, L, I], kindPref: string): DotGraph =
@@ -304,22 +305,23 @@ func toDotGraphPrecise*[C, L, I](
       of ptkToken: fmt("{it.tok.cat.tokKindStr(kindPref)}\n'{it.tok}'")
       of ptkList: it.nodeKindStr()
 
-    result.addNode(makeDotNode(
+    result.add makeDotNode(
       itaddr.toDotNodeId(),
       label = label & (
         block:
           if tree.action != taDefault:
             fmt("\n{tree.action}")
+
           else:
             ""
       )
-    ))
+    )
 
     for tr in subt:
-      result.addEdge(makeDotEdge(
+      result.add makeDotEdge(
         itaddr.toDotNodeId(),
         toDotNodeId(addr tr[])
-      ))
+      )
 
 func toDotGraph*[C, L, I](
     tree: ParseTree[C, L, I],

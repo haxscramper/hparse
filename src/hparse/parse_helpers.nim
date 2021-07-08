@@ -1,12 +1,8 @@
-import sequtils
 import hmisc/algo/[halgorithm, hseq_mapping]
-
-import sets, hashes, sugar
+import std/[sets, hashes, sugar, hashes, sequtils, algorithm, sets, tables]
 
 
 #==========================  Topological sort  ===========================#
-
-import hashes, sequtils, algorithm, sets
 
 type
   LogicError = ref object of CatchableError
@@ -14,10 +10,11 @@ type
 
 
 func topoSort*[Vertex](
-  verts: openarray[Vertex],
-  deps: proc(vert: Vertex): seq[Hash],
-  idgen: proc(vert: Vertex): Hash,
-  revese: bool = true): seq[Vertex] =
+    verts: openarray[Vertex],
+    deps: proc(vert: Vertex): seq[Hash],
+    idgen: proc(vert: Vertex): Hash,
+    revese: bool = true
+  ): seq[Vertex] =
   ## ..code-block::
   ##     assert @[3, 2, 1] == topoSort(
   ##       verts = @[1, 2, 3],
