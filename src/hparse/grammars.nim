@@ -2,7 +2,7 @@ import tables, hashes, sugar, sequtils, strformat, options, colors
 import strutils
 export tables
 import hmisc/helpers
-import hasts/graphviz_ast
+import hmisc/hasts/graphviz_ast
 import hmisc/types/[hvariant, colorstring]
 import hmisc/algo/[halgorithm, htree_mapping, hseq_mapping]
 import lexer, token

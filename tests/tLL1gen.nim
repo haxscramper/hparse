@@ -2,7 +2,7 @@ import unittest, sequtils, options, random, strutils
 import typetraits
 import hpprint
 import hmisc/algo/[halgorithm, htree_mapping]
-import hasts/graphviz_ast
+import hmisc/hasts/graphviz_ast
 import hparse/[
   ll1_gen, grammars, parse_primitives, lexer, token], macros
 include example_grammar

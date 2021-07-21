@@ -6,7 +6,7 @@ import sets, hashes, sequtils, strformat, strutils, options
 import hmisc/helpers
 import hmisc/algo/clformat
 import hmisc/types/colorstring
-import hasts/graphviz_ast
+import hmisc/hasts/graphviz_ast
 
 #*************************************************************************#
 #**************************  Type declarations  **************************#

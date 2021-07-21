@@ -78,12 +78,12 @@ template ecompare*(input: typed, gr1, gr2: untyped): untyped =
     eparse(input, gr2)
   )
 
-func sideBySide*(str1, str2: string): string =
-  concatBufsLeft(@[
-    str1.toTermBuf(),
-    makeTermBuf(w = 3, h = 1),
-    str2.toTermBuf()
-  ]).toString()
+# func sideBySide*(str1, str2: string): string =
+#   concatBufsLeft(@[
+#     str1.toTermBuf(),
+#     makeTermBuf(w = 3, h = 1),
+#     str2.toTermBuf()
+#   ]).toString()
 
 template exampleParseBNF*(str: typed, grammar: untyped): untyped =
   let name = block:

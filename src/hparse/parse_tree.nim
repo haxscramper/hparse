@@ -1,8 +1,8 @@
 import parse_primitives, token
 import sequtils, strformat, strutils, colors, tables
 
-import hasts/[graphviz_ast, html_ast]
-import hmisc/types/[ hprimitives, colorstring ]
+import hmisc/hasts/[graphviz_ast, html_ast]
+import hmisc/types/[hprimitives, colorstring]
 import hmisc/algo/htree_mapping
 import hmisc/helpers
 export colorstring

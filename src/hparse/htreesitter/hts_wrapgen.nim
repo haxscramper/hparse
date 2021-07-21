@@ -6,8 +6,8 @@ import std/[
 import compiler/ast
 
 import
-  hmisc/[hexceptions, hdebug_misc],
-  hmisc/other/[hjson, hshell, oswrap, colorlogger, hcligen],
+  hmisc/[hexceptions, hdebug_misc, helpers],
+  hmisc/other/[hjson, hshell, oswrap, hlogger, hargparse],
   hmisc/algo/[clformat, halgorithm, hstring_algo, hseq_distance, namegen],
   hmisc/wrappers/treesitter,
   hpprint,
@@ -75,8 +75,12 @@ func ntermName(elem: Tree, lang: string): string =
   if not elem.named:
     result &= "Tok"
 
-func makeNodeName(lang: string): string = lang.capitalizeAscii() & "Node"
-func makeNodeKindName(lang: string): string = lang.makeNodeName() & "Kind"
+func makeNodeName(lang: string): string =
+  "Ts" & lang.capitalizeAscii() & "Node"
+
+func makeNodeKindName(lang: string): string =
+  lang.capitalizeAscii() & "NodeKind"
+
 func langErrorName(lang: string): string =
   lang & "SyntaxError"
 
@@ -159,12 +163,34 @@ func makeLangParserName(lang: string): string =
 func makeImplTsFor(lang: string): PNode =
   result = nnkStmtList.newPTree()
   let
-    parser: PNode = lang.makeLangParserName().newPType().toNNode()
-    nodeType: PNode = lang.makeNodeName().newPType().toNNode()
-    langLen: PNode = newPLit(lang.len)
-    langImpl: PNode = newPIdent("tree_sitter_" & lang)
-    newParserID: PNode = newPIdent("new" & lang.makeLangParserName())
-    parseStringID: PNode = newPIdent("parse" & lang.capitalizeAscii() & "String")
+    langCap       = lang.capitalizeAscii()
+    parser        = lang.makeLangParserName().newPType().toNNode()
+    kindType      = lang.makeNodeKindName().newPIdent()
+    nodeType      = lang.makeNodeName().newPType().toNNode()
+    langLen       = newPLit(lang.len)
+    langImpl      = newPIdent("tree_sitter_" & lang)
+    newParserID   = newPIdent("newTs" & lang.makeLangParserName())
+    parseStringID = newPIdent(&["parseTs", langCap, "String"])
+    parseTreeId   = newPident(&["parse", langCap, "String"])
+    htsType       = newPident(langCap & "Node")
+    treeReprId    = newPIdent("treeReprTs" & langCap)
+
+  result.add pquote do:
+    type `htsType`* = HtsNode[`nodeType`, `kindType`]
+
+    func isNil*(node: `nodeType`): bool =
+      ts_node_is_null(TSNode(node))
+
+    func len*(node: `nodeType`, unnamed: bool = false): int =
+      if unnamed:
+        int(ts_node_child_count(TSNode(node)))
+      else:
+        int(ts_node_named_child_count(TSNode(node)))
+
+    func has*(node: `nodeType`, idx: int, unnamed: bool = false): bool =
+      0 <= idx and idx < node.len(unnamed)
+
+
 
   result.add pquote do:
     proc `langImpl`(): PtsLanguage {.importc, cdecl.}
@@ -185,104 +211,64 @@ func makeImplTsFor(lang: string): PNode =
       let parser = `newParserId`()
       return parseString(parser, str)
 
-  startHaxComp()
+
   result.add pquote do:
-    func `[]`*(node: `nodeType`,
-               idx: int, withUnnamed: bool = false): `nodeType` =
-      if withUnnamed:
-        `nodeType`(ts_node_child(TSNode(node), uint32(idx)))
+    func `$`*(node: `nodeType`): string =
+      if isNil(node):
+        "<nil tree>"
+
       else:
-        `nodeType`(ts_node_named_child(TSNode(node), uint32(idx)))
+        $node.kind
 
-    func len*(node: `nodeType`, withUnnamed: bool = false): int =
-      if withUnnamed:
-        int(ts_node_child_count(TSNode(node)))
-      else:
-        int(ts_node_named_child_count(TSNode(node)))
+    func `[]`*(
+        node: `nodeType`,
+        idx: int,
+        kind: `kindType` | set[`kindType`]): `nodeType` =
 
-    proc isNil*(node: `nodeType`): bool =
-      ts_node_is_null(TsNode(node))
+      assert 0 <= idx and idx < node.len
+      result = `nodeType`(ts_node_named_child(TSNode(node), uint32(idx)))
+      assertKind(
+        result, kind,
+        "Child node at index " & $idx & " for node kind " & $node.kind)
 
-    iterator items*(node: `nodeType`,
-                   withUnnamed: bool = false): `nodeType` =
-      ## Iterate over subnodes. `withUnnamed` - also iterate over unnamed
-      ## nodes (usually things like punctuation, braces and so on).
-      for i in 0 ..< node.len(withUnnamed):
-        yield node[i, withUnnamed]
-
-    iterator pairs*(
-      node: `nodeType`, withUnnamed: bool = false): (int, `nodeType`) =
-      ## Iterate over subnodes. `withUnnamed` - also iterate over unnamed
-      ## nodes.
-      for i in 0 ..< node.len(withUnnamed):
-        yield (i, node[i, withUnnamed])
-
-    func slice*(node: `nodeType`): Slice[int] =
-      {.cast(noSideEffect).}:
-        ## Get range of source code **bytes** for the node
-        ts_node_start_byte(TsNode(node)).int ..<
-        ts_node_end_byte(TsNode(node)).int
-
-    func `[]`*(s: string, node: `nodeType`): string =
-      s[node.slice()]
 
     # func parent*(node: `nodeType`): `nodeType` =
     #   `nodeType`(ts_node_parent(TsNode(node)))
 
-    func nodeString*(node: `nodeType`): string =
-      $ts_node_string(TSNode(node))
 
-    func isNull*(node: `nodeType`): bool =
-      ts_node_is_null(TSNode(node))
-
-    func isNamed*(node: `nodeType`): bool =
-      ts_node_is_named(TSNode(node))
-
-    func isMissing*(node: `nodeType`): bool =
-      ts_node_is_missing(TSNode(node))
-
-    func isExtra*(node: `nodeType`): bool =
-      ts_node_is_extra(TSNode(node))
-
-    func hasChanges*(node: `nodeType`): bool =
-      ts_node_has_changes(TSNode(node))
-
-    func hasError*(node: `nodeType`): bool =
-      ts_node_has_error(TSNode(node))
-
-    func parent*(node: `nodeType`): `nodeType` =
-      `nodeType`(ts_node_parent(TSNode(node)))
-
-    func child*(node: `nodeType`; a2: int): `nodeType` =
-      `nodeType`(ts_node_child(TSNode(node), a2.uint32))
-
-    func childCount*(node: `nodeType`): int =
-      ts_node_child_count(TSNode(node)).int
-
-    func namedChild*(node: `nodeType`; a2: int): `nodeType` =
-      `nodeType`(ts_node_named_child(TSNode(node), a2.uint32))
-
-    func namedChildCount*(node: `nodeType`): int =
-      ts_node_named_child_count(TSNode(node)).int
-
-    func startPoint*(node: `nodeType`): TSPoint =
-      ts_node_start_point(TSNode(node))
-
-    func endPoint*(node: `nodeType`): TSPoint =
-      ts_node_end_point(TSNode(node))
-
-    func startLine*(node: `nodeType`): int = node.startPoint().row.int
-    func endLine*(node: `nodeType`): int = node.endPoint().row.int
-    func startColumn*(node: `nodeType`): int = node.startPoint().column.int
-    func endColumn*(node: `nodeType`): int = node.endPoint().column.int
-
-    func childByFieldName*(
-      self: `nodeType`; fieldName: string; fieldNameLength: int
-    ): TSNode =
-      ts_node_child_by_field_name(
-        TSNode(self), fieldName.cstring, fieldNameLength.uint32
+    proc `treeReprId`*(
+        str: string,
+        unnamed: bool = false
+      ): string =
+      treeRepr[`nodeType`, `kindType`](
+        `parseStringId`(str), str,
+        `langLen`,
+        unnamed = unnamed
       )
 
+    proc toHtsNode*(node: `nodeType`, str: ptr string):
+      HtsNode[`nodeType`, `kindType`] =
+
+      toHtsNode[`nodeType`, `kindType`](node, str)
+
+    proc toHtsTree*(node: `nodeType`, str: ptr string): `htsType` =
+      toHtsNode[`nodeType`, `kindType`](node, str)
+
+    proc `parseTreeID`*(
+        str: ptr string, unnamed: bool = false
+      ): `htsType` =
+
+      let parser = `newParserId`()
+      return toHtsTree[`nodeType`, `kindType`](
+        parseString(parser, str[]), str)
+
+    proc `parseTreeID`*(
+        str: string, unnamed: bool = false
+      ): `htsType` =
+
+      let parser = `newParserId`()
+      return toHtsTree[`nodeType`, `kindType`](
+        parseString(parser, str), unsafeAddr str, storePtr = false)
 
 func makeDistinctType*(baseType, aliasType: NType[PNode]): PNode =
   let
@@ -296,13 +282,15 @@ func makeDistinctType*(baseType, aliasType: NType[PNode]): PNode =
 proc createProcDefinitions(
     spec: NodeSpec,
     inputLang: string,
-    names: var StringNameCache
+    names: var StringNameCache,
+    l: HLogger
   ): PNode =
 
   result = nnkStmtList.newPTree()
 
   result.add pquote do:
     import hmisc/wrappers/treesitter
+    import hmisc/base_errors
     import strutils
 
   result.add makeKindEnum(spec, inputLang, names).toNNode(standalone = true)
@@ -325,8 +313,8 @@ proc createProcDefinitions(
         let name = inputLang & "Extern" & extern.capitalizeAscii() &
           "_" & $(externSet[extern.normalize()] + 1)
 
-        warn "External enum name clash"
-        debug extern, "will be wrapped as", name
+        l.warn "External enum name clash"
+        l.debug extern, "will be wrapped as", name
 
         externEnum.values.add makeEnumField[PNode](
           name,
@@ -373,58 +361,58 @@ proc noChangesForFile*(file: AnyFile): bool =
 proc compileGrammar(
     grammarJs: AbsFile,
     langPrefix: string,
-    scannerFile: Option[AbsFile] = none(AbsFile),
-    parserSourceOut: Option[AbsFile] = none(AbsFile),
     junkDir: AbsDir,
-    forceBuild: bool = false,
-    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[]
+    scannerFile: Option[AbsFile]                          = none(AbsFile),
+    parserOut: Option[AbsFile]                            = none(AbsFile),
+    wrapperOut: Option[AbsFile]                           = none(AbsFile),
+    forceBuild: bool                                      = false,
+    testLink: bool                                        = true,
+    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[],
+    l: HLogger                                            = newTermLogger()
   ): string =
 
   let junkDir = junkDir / langPrefix
 
-  info "Lang prefix", langPrefix
-  debug junkDir
+  l.info "Lang prefix", langPrefix
+  l.debug junkDir
 
-  info "Using cache dir", junkDir
+  l.info "Using cache dir", junkDir
 
   let startDir = cwd()
 
   rmDir junkDir
   mkDir junkDir
   withDir junkDir:
-    info "Started temporary directory"
-    debug cwd()
+    l.info "Started temporary directory"
+    l.debug cwd()
     cpFile grammarJs, RelFile("grammar.js")
     if extraFiles.len > 0:
-      logIndented:
-        info "Copying extra files"
+      l.indented:
+        l.info "Copying extra files"
         for (src, target) in extraFiles:
           mkDir target.dir
           cpFile src, target
-          debug src, "->\n", target
+          l.debug src, "->\n", target
 
-    execShell(shCmd(
+    l.execShell(shCmd(
       npm, --silent, link,
       "regexp-util", "tree-sitter-c", "readdir-enhanced", "nan"
     ))
 
-    info "Linked regexp-util BS for node.js"
-
-    info "Generating tree-sitter files"
-
-    info cwd()
+    l.info "Linked regexp-util BS for node.js"
+    l.info "Generating tree-sitter files"
+    l.info cwd()
     for file in walkDir(cwd(), yieldFilter = {}):
-      debug file
+      l.debug file
 
-    execShell shCmd("tree-sitter", "generate")
-
+    l.execShell shCmd("tree-sitter", "generate")
 
     # if true:
     #   execShell shCmd("tree-sitter", "build-wasm")
     #   execShell shCmd("tree-sitter", "web-ui")
 
 
-    debug "Done"
+    l.debug "Done"
 
     if scannerFile.isSome():
       let file = scannerFile.get()
@@ -450,58 +438,58 @@ proc compileGrammar(
     let lang: string = grammar["name"].asStr()
 
     let
-      parserOut = startDir /. (lang & "_parser.o")
-      wrapperOut = startDir /. (lang & "_wrapper.nim")
-      scannerOut = if scannerFile.isSome():
-                     some(startDir /. (lang & "_scanner.o"))
+      parserOut = if parserOut.isSome():
+                    parserOut.get()
+
+                  else:
+                    startDir /. (lang & "_parser.o")
+
+      wrapperOut = if wrapperOut.isSome():
+                     wrapperOut.get()
+
                    else:
-                     none(AbsFile)
+                     startDir /. (lang & "_wrapper.nim")
 
     var names: StringNameCache
-    wrapperOut.writeFile($createProcDefinitions(spec, lang, names))
-    info "Wrote generated wrappers to", wrapperOut
+    wrapperOut.writeFile($createProcDefinitions(spec, lang, names, l))
+    l.info "Wrote generated wrappers to", wrapperOut
 
-    debug "Linking parser.c"
-    execShell makeGnuShellCmd("gcc").withIt do:
-      it.arg "src/parser.c"
-      it - "c"
-      it - ("o", "", "parser.o")
+    if testLink:
+      l.debug "Linking parser.c"
+      l.execShell makeGnuShellCmd("gcc").withIt do:
+        it.arg "src/parser.c"
+        it - "c"
+        it - ("o", "", "parser.o")
 
-    cpFile RelFile("parser.o"), parserOut
-    if parserSourceOut.getSome(src):
-      cpFile RelFile("src/parser.c"), src
-
-    debug "Copied parser file to", parserOut
+    cpFile RelFile("src/parser.c"), parserOut
+    l.debug "Copied parser file to", parserOut
 
     if scannerFile.isSome():
       let file = scannerFile.get()
-      debug "Linking", file
-      execShell makeGnuShellCmd("gcc").withIt do:
-        it.arg $file
-        it - "c"
-        it - ("o", "", "scanner.o")
-
-      cpFile RelFile("scanner.o"), scannerOut.get()
-      debug "Compied compiled scanner to", scannerOut.get()
-
+      if testLink:
+        l.debug "Linking", file
+        l.execShell makeGnuShellCmd("gcc").withIt do:
+          it.arg $file
+          it - "c"
+          it - ("o", "", "scanner.o")
 
     if extraFiles.len > 0:
-      logIndented:
-        info "Copying extra files to target directory"
+      l.indented:
+        l.info "Copying extra files to target directory"
         for (src, target) in extraFiles:
           if target.ext != "js":
             cpFile target, parserOut.dir / target
-            debug target, "->\n", parserOut.dir / target
+            l.debug target, "->\n", parserOut.dir / target
 
-    info "tree-sitter object files generation ok"
+    l.info "tree-sitter object files generation ok"
     return lang
 
-proc argParse(
-  dst: var tuple[src: AbsFile, target: RelFile],
-  dfl: tuple[src: AbsFile, target: RelFile],
-  a: var ArgcvtParams): bool =
+# proc argParse(
+#   dst: var tuple[src: AbsFile, target: RelFile],
+#   dfl: tuple[src: AbsFile, target: RelFile],
+#   a: var ArgcvtParams): bool =
 
-  return false
+#   return false
 
 
 proc grammarFromFile*(
@@ -509,34 +497,40 @@ proc grammarFromFile*(
     scannerFile: Option[FsFile] = none(FsFile),
     parserUser:  Option[FsFile] = none(FsFile),
     parserOut:   Option[FsFile] = none(FsFile),
+    wrapperOut:  Option[FsFile] = none(FsFile),
     cacheDir:    AbsDir         = getAppCacheDir(),
     nimcacheDir: Option[FsDir]  = none(FsDir),
     forceBuild:  bool           = false,
     langPrefix:  string         = "",
-    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[]
+    testLink:    bool           = true,
+    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[],
+    l: HLogger             = newTermLogger()
   ) =
 
-  info "Working directory is", cwd()
+  l.info "Working directory is", cwd()
   if scannerFile.isNone():
-    warn "No input scanner file"
+    l.warn "No input scanner file"
 
   else:
-    info "Scanner file is", scannerFile.get()
-    info "Absolute scanner file position", scannerFile.get().toAbsFile()
+    l.info "Scanner file is", scannerFile.get()
+    l.info "Absolute scanner file position", scannerFile.get().toAbsFile()
 
   let lang = compileGrammar(
     grammarJs   = grammarJs.toAbsFile(true),
     langPrefix  = langPrefix,
-    scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
     junkDir     = cacheDir,
     forceBuild  = forceBuild,
-    parserSourceOut   = parserOut.mapItSome(it.toAbsFile()),
-    extraFiles = extraFiles
+    extraFiles  = extraFiles,
+    scannerFile = scannerFile.mapItSome(it.toAbsFile(true)),
+    wrapperOut  = wrapperOut.mapItSome(it.toAbsFile()),
+    parserOut   = parserOut.mapItSome(it.toAbsFile()),
+    testLink    = testLink,
+    l           = l
   )
 
 
   if parserUser.isSome():
-    info "Test parser user file is some. Compiling ..."
+    l.info "Test parser user file is some. Compiling ..."
     let user = parserUser.get()
     try:
       let res = runShell makeNimShellCmd("nim").withIt do:
@@ -572,23 +566,23 @@ proc grammarFromFile*(
       for line in ex.errstr.split("\n"):
         if line.contains(["undefined reference"]):
           if line.contains("external"):
-            once: err "Missing linking with external scanners"
-            info line.split(" ")[^1][1..^2]
+            once: l.err "Missing linking with external scanners"
+            l.info line.split(" ")[^1][1..^2]
 
           elif line.contains("ts_"):
-            once: err "Missing linking with tree-sitter library"
-            info line
+            once: l.err "Missing linking with tree-sitter library"
+            l.info line
 
           elif line.contains("std::"):
-            once: err "Missing linking with C++ stdlib"
-            info line
+            once: l.err "Missing linking with C++ stdlib"
+            l.info line
 
           elif line.contains("tree_sitter_"):
-            once: err "Missing linking with compiled parser"
+            once: l.err "Missing linking with compiled parser"
 
           else:
-            once: err "Missing linking with other library"
-            info line
+            once: l.err "Missing linking with other library"
+            l.info line
 
         elif line.contains(["/bin/ld", "ld returned"]):
           discard
@@ -597,13 +591,22 @@ proc grammarFromFile*(
 
 import std/httpclient
 
+func cliCheckFor*(url: typedesc[Url]): CliCheck = checkAcceptAll()
+func toCliValue*(url: Url, doc: string = "", desc: CliDesc = nil): CliValue =
+  specialStringCliValue(url.string, doc, desc)
+
+func fromCLiValue*(value: CliValue, url: var Url) =
+  url = Url(value.strVal)
+
 proc grammarFromUrl*(
     grammarUrl: Url,
     grammarFile: FsFile     = RelFile("grammar.js"),
     scannerUrl: Option[Url] = none(Url),
     scannerFile: FsFile     = RelFile("scanner.c"),
     parserOut: FsFile       = RelFile("parser.c"),
-    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[]
+    extraFiles: seq[tuple[src: AbsFile, target: RelFile]] = @[],
+    testLink: bool = true,
+    l: HLogger = newTermLogger()
   ) =
 
   let client = newHttpClient()
@@ -615,18 +618,73 @@ proc grammarFromUrl*(
     grammarJs   = grammarFile,
     scannerFile = if scannerUrl.isNone(): none(FsFile) else: some(scannerFile),
     parserOut   = some(parserOut),
-    extraFiles = extraFiles
+    extraFiles = extraFiles,
+    testLink = testLink,
+    l = l
   )
 
+const
+  commonOpts = @{
+    "parserOut": "File to write generated parser to",
+    "testLink": "Test linkage of the generated parsers",
+    "extraFiles": "Additional files to copy",
+  }
+  confGrammarFromUrl = procConf(
+    ignore = @["l"],
+    help = commonOpts & @{
+      "grammarUrl": "URL to download grammar file from",
+      "grammarFile": "Path to save downloaded file",
+      "scannerUrl": "ULR to download scanner file from",
+      "scannerFile": "Path to save scanner file",
+    }
+  )
+
+  confGrammarFromFile = procConf(
+    ignore = @["l"],
+    positional = @["grammarJs"],
+    help = commonOpts & @{
+      "grammarJs": "Input js grammar file",
+      "scannerFile": "C/C++ code for tree-sitter scanner",
+      "parseruser": "Nim file to compile immediately after grammar generation",
+      "wrapperOut": "File to write generated nim wrappers to",
+      "cacheDir": "Grammar generation cache directory",
+      "nimcacheDir": "Nim compilation cache directory",
+      "forceBuild": "Force rebuild",
+      "langPrefix": "Language prefix, will be prefixed for wrappers types",
+    }
+  )
+
+proc newApp*(): CliApp =
+  result = newCliApp(
+    "hts_wrapgen", (0, 1, 1), "haxscramper",
+    "Generate nim wrappers for tree-sitter grammars",
+    noDefault = cliNoLoggerConfig & "force"
+  )
+
+  result.add cmd(grammarFromFile, conf = confGrammarFromFile)
+  result.add cmd(grammarFromUrl, conf = confGrammarFromUrl)
+
+proc main*(
+    args: seq[string],
+    logger: HLogger = newTermLogger(),
+    doQuit: bool = true
+  ) =
+  echo args
+  var app = newApp()
+  app.acceptArgsAndRunBody(logger, args):
+    app.runDispatched([
+      (grammarFromFile, confGrammarFromFile),
+      (grammarFromUrl, confGrammarFromUrl)
+    ], logger, doQuit = doQuit)
+
 when isMainModule:
-  startColorLogger()
-  if paramCount() == 0:
-    grammarFromFile(
-      forceBuild = true,
-      parserUser = some RelFile("parser_user.nim")
-    )
-  else:
-    dispatchMulti(
-      [grammarFromFile],
-      [grammarFromUrl]
-    )
+  main(paramStrs())
+  # if paramCount() == 0:
+  #   grammarFromFile(
+  #     forceBuild = true,
+  #     parserUser = some RelFile("parser_user.nim"))
+  # else:
+  #   dispatchMulti(
+  #     [grammarFromFile],
+  #     [grammarFromUrl]
+  #   )

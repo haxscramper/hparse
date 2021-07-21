@@ -1,6 +1,6 @@
 import std/[sugar, strutils, sequtils, strformat,
             sets, random, colors, macros]
-import hasts/[graphviz_ast, html_ast]
+import hmisc/hasts/[graphviz_ast, html_ast]
 
 
 #===========================  implementation  ============================#
