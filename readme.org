@@ -1,4 +1,4 @@
-#+title: readme
+#+title: deprecated, writing parsers by hand wins for all of my use cases, so don't plan to maintain/generic parser generator library.
 #+property: header-args:nim+ :flags -d:plainStdout --cc:tcc --hints:off
 #+property: header-args:nim+ :import hparse/doc_example
 
